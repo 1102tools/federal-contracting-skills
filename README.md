@@ -28,8 +28,8 @@ Website: [1102tools.com](https://1102tools.com)
 | [eCFR Reference](skills/ecfr-api-reference) | v1.2 | No key | Title 48 chapter map, common FAR sections, composite workflows. Install alongside main skill. |
 | [Regulations.gov](skills/regulationsgov-api) | v1.3 | api.data.gov | Federal rulemaking dockets, proposed rules, public comments, docket histories. |
 | [Regulations.gov Reference](skills/regulationsgov-api-reference) | v1.3 | No key | Comment tracker, FAR case history, regulatory monitor. Install alongside main skill. |
-| [SAM.gov API](skills/sam-gov-api) | v1.0 | SAM.gov | Entity registration (UEI/CAGE), exclusion/debarment records, contract opportunities. |
-| [SAM.gov Reference](skills/sam-gov-api-reference) | v1.0 | No key | Entity schemas, business type codes, composite workflows. Install alongside main skill. |
+| [SAM.gov API](skills/sam-gov-api) | v1.1 | SAM.gov | Entity registration (UEI/CAGE), exclusion/debarment records, contract opportunities, contract awards (FPDS replacement). |
+| [SAM.gov Reference](skills/sam-gov-api-reference) | v1.1 | No key | Entity and award schemas, business type codes, composite workflows. Install alongside main skill. |
 
 ### Orchestration Skills
 

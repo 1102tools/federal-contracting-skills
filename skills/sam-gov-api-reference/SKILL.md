@@ -1,7 +1,7 @@
 ---
 name: sam-gov-api-reference
 description: >
-  Reference file for the SAM.gov API skill. Do not trigger directly. Contains entity section schemas, exclusion response fields, opportunity set-aside codes, business type codes, composite workflows, and troubleshooting. Loaded on demand by the main sam-gov-api skill.
+  Reference file for the SAM.gov API skill. Do not trigger directly. Contains entity section schemas, exclusion response fields, contract awards response schema, opportunity set-aside codes, business type codes, composite workflows, and troubleshooting. Loaded on demand by the main sam-gov-api skill.
 ---
 
 # SAM.gov API Reference
@@ -12,11 +12,12 @@ Supplemental reference for the SAM.gov API skill. Load on demand when you need f
 1. Entity Management Response Schema
 2. Exclusion Response Schema
 3. Opportunity Response Schema
-4. Business Type Codes
-5. Set-Aside Type Codes
-6. Composite Workflows
-7. PSC Category Hierarchy
-8. Troubleshooting
+4. Contract Awards Response Schema
+5. Business Type Codes
+6. Set-Aside Type Codes
+7. Composite Workflows
+8. PSC Category Hierarchy
+9. Troubleshooting
 
 ---
 
@@ -215,7 +216,112 @@ Key areas: FAR 52.204-17 (ownership/control), FAR 52.209-2 (FAPIIS proceedings),
 
 ---
 
-## 4. Business Type Codes
+## 4. Contract Awards Response Schema
+
+Top-level response (populated): `totalRecords` (int), `limit` (int), `offset` (int), `awardSummary[]` array.
+Top-level response (empty): `awardResponse.totalRecords` (string "0"), `awardResponse.limit` (string), `awardResponse.offset` (string), `message` (string). See Rule 26 in SKILL.md.
+
+### contractId Section
+- `subtier.code` / `.name` - Agency subtier (e.g., "9700" / "DEPT OF DEFENSE")
+- `piid` - Procurement Instrument Identifier
+- `modificationNumber` - Modification number ("0" for base award, "P00001" etc. for mods)
+- `transactionNumber` - Transaction number within the modification
+- `reasonForModification.code` / `.name` - Modification reason (e.g., "M" / "OTHER ADMINISTRATIVE ACTION")
+- `referencedIDVSubtier.code` / `.name` - Referenced IDV agency (for delivery/task orders)
+- `referencedIDVPiid` - Referenced IDV PIID (parent contract for orders)
+- `referencedIDVModificationNumber` - Referenced IDV mod number
+
+### coreData Section
+
+**solicitationId** - Associated solicitation number
+**solicitationDate** - Solicitation issue date
+**awardOrIDV** - "AWARD" or "IDV"
+**awardOrIDVType.code / .name** - B=Purchase Order, C=Delivery Order, A=BPA Call, D=Definitive Contract, E=BPA, F=Indefinite Delivery Contract, G=Basic Ordering Agreement
+
+**federalOrganization:**
+- `contractingInformation.contractingDepartment.code/.name` - Contracting department
+- `contractingInformation.contractingSubtier.code/.name` - Contracting sub-agency
+- `contractingInformation.contractingOffice.code/.name/.country` - Contracting office
+- `fundingInformation.fundingDepartment.code/.name` - Funding department
+- `fundingInformation.fundingSubtier.code/.name` - Funding sub-agency
+- `fundingInformation.fundingOffice.code/.name` - Funding office
+- `fundingInformation.foreignFunding.code/.name` - Foreign funding flag
+
+**acquisitionData:**
+- `typeOfContractPricing.code/.name` - J=FFP, K=FP-EPA, L=FP-Incentive, R=Cost Plus Award Fee, S=Cost No Fee, T=Cost Sharing, U=Cost Plus Fixed Fee, V=Cost Plus Incentive Fee, Y=T&M, Z=LH
+- `multiyearContract` - YES/NO
+- `performanceBasedServiceContract.code/.name`
+- `consolidatedContract.code/.name`
+- `contractFinancing.code/.name`
+
+**principalPlaceOfPerformance:**
+- `city.name`, `county.code/.name`, `state.code/.name`, `zipCode`, `congressionalDistrict`, `country.code/.name`
+
+**productOrServiceInformation:**
+- `productOrService.type` - PRODUCT or SERVICE
+- `productOrService.code/.name` - PSC code and name
+- `principalNaics[].code/.name` - NAICS code(s)
+- `contractBundling.code/.name`
+- `countryOfOrigin.code/.name`
+
+**competitionInformation:**
+- `extentCompeted.code/.name` - A=Full and Open, B=Not Available, C=Not Competed, D=Full and Open After Exclusion, E=Follow On, F=Competed Under SAP, G=Not Competed Under SAP
+- `typeOfSetAside.code/.name` - NONE, SBA, 8A, HZC, SDVOSBC, WOSB, etc.
+- `solicitationProcedures.code/.name`
+- `numberOfOffersSource.code/.name`
+
+### awardDetails Section
+
+**dates:**
+- `dateSigned` - Award signature date (ISO 8601: 2026-01-07T00:00:00Z)
+- `periodOfPerformanceStartDate` - PoP start
+- `currentCompletionDate` - Current PoP end
+- `ultimateCompletionDate` - Ultimate PoP end (with all options)
+- `fiscalYear` - Fiscal year of action
+
+**dollars:**
+- `actionObligation` - Dollars obligated on this specific action/modification
+- `baseDollarsObligated` - Base obligation
+- `baseAndExercisedOptionsValue` - Base + exercised options
+- `baseAndAllOptionsValue` - Base + all options (ceiling)
+- `feePaidForUseOfService` - Fee amount
+
+**totalContractDollars:**
+- `totalActionObligation` - Cumulative obligation across all mods
+- `totalBaseAndExercisedOptionsValue` - Cumulative base + exercised
+- `totalBaseAndAllOptionsValue` - Cumulative ceiling
+
+**awardeeData:**
+- `awardeeHeader.awardeeName` - Vendor name
+- `awardeeHeader.awardeeNameFromContract` - Name as it appears on the contract
+- `awardeeUEIInformation.uniqueEntityId` - UEI
+- `awardeeUEIInformation.cageCode` - CAGE code
+- `awardeeUEIInformation.awardeeUltimateParentUniqueEntityId` - Parent UEI
+- `awardeeUEIInformation.awardeeUltimateParentName` - Parent name
+- `awardeeLocation` - streetAddress1, city, state.code/.name, zip, country.code/.name, congressionalDistrict, phoneNumber, faxNumber
+- `awardeeBusinessTypes` - Nested structure with YES/NO flags: `isUsFederalGovernment`, `usStateGovernment`, `foreignGovernment`, `businessOrOrganization` (corporateEntityNotTaxExempt, soleProprietorship, etc.)
+- `socioEconomicData` - YES/NO flags: `veteranOwnedBusiness`, `serviceDisabledVeteranOwnedBusiness`, `minorityOwnedBusiness` (with sub-flags), `womenOwnedBusiness`, `womenOwnedSmallBusiness`, `emergingSmallBusiness`
+- `certifications` - `sbaCertified8aProgramParticipant`, `sbaCertifiedHubZoneFirm`, `sbaCertifiedWomenOwnedSmallBusiness`, etc.
+
+**competitionInformation:**
+- `numberOfOffersReceived` - Number of offers
+- `commercialProductsAndServicesAcquisitionProcedures.code/.name`
+- `evaluatedPreference.code/.name`
+
+**preferenceProgramsInformation:**
+- `contractingOfficerBusinessSizeDetermination[].code/.name` - S=Small Business, O=Other Than Small
+
+**transactionData:**
+- `status.code/.name` - F=FINAL, D=DRAFT
+- `version` - Record version
+- `createdBy` / `createdDate` - Creator and timestamp
+- `lastModifiedBy` / `lastModifiedDate` - Last modifier and timestamp
+- `approvedBy` / `approvedDate` - Approver and timestamp
+- `closedStatus` - Y/N
+
+---
+
+## 5. Business Type Codes
 
 ### Small Business and Ownership Types (businessTypeCode)
 
@@ -269,7 +375,7 @@ These use the `entityStructureCode` parameter, not `businessTypeCode`. They desc
 
 ---
 
-## 5. Set-Aside Type Codes (Opportunities)
+## 6. Set-Aside Type Codes (Opportunities)
 
 | Code | Description |
 |---|---|
@@ -290,7 +396,7 @@ These use the `entityStructureCode` parameter, not `businessTypeCode`. They desc
 
 ---
 
-## 6. Composite Workflows
+## 7. Composite Workflows
 
 ### Vendor Responsibility Check (Entity + Exclusion)
 
@@ -491,9 +597,124 @@ def check_recent_opportunities(naics=None, set_aside=None, agency_keyword=None, 
     }
 ```
 
+### Contract Award History Lookup
+
+Retrieve all modifications for a PIID to build a complete award history timeline.
+
+```python
+def contract_award_history(piid, include_deleted=False):
+    """Pull all modifications for a PIID. Returns chronological award history."""
+    params = {"piid": piid, "limit": "100", "offset": "0"}
+    if include_deleted:
+        params["deletedStatus"] = "Y"
+
+    all_records = []
+    while True:
+        result = safe_sam(sam_awards, params)
+        if "error" in result:
+            return result
+        records = result.get("awardSummary", [])
+        all_records.extend(records)
+        total = result.get("totalRecords", 0)
+        if len(all_records) >= total or not records:
+            break
+        params["offset"] = str(len(all_records))
+        time.sleep(0.5)
+
+    # Sort by mod number then transaction number
+    all_records.sort(key=lambda r: (
+        r.get("contractId", {}).get("modificationNumber", ""),
+        r.get("contractId", {}).get("transactionNumber", "0")
+    ))
+
+    return {
+        "piid": piid,
+        "totalRecords": len(all_records),
+        "history": [{
+            "modificationNumber": r.get("contractId", {}).get("modificationNumber"),
+            "transactionNumber": r.get("contractId", {}).get("transactionNumber"),
+            "reasonForModification": r.get("contractId", {}).get("reasonForModification", {}).get("name"),
+            "dateSigned": r.get("awardDetails", {}).get("dates", {}).get("dateSigned"),
+            "actionObligation": r.get("awardDetails", {}).get("dollars", {}).get("actionObligation"),
+            "totalObligation": r.get("awardDetails", {}).get("totalContractDollars", {}).get("totalActionObligation"),
+            "vendor": r.get("awardDetails", {}).get("awardeeData", {}).get("awardeeHeader", {}).get("awardeeName"),
+            "status": r.get("awardDetails", {}).get("transactionData", {}).get("status", {}).get("name")
+        } for r in all_records]
+    }
+```
+
+### Vendor Award Profile
+
+Combines Entity Management (registration/business types) with Contract Awards (recent awards) to build a vendor intelligence profile. Three API calls.
+
+```python
+def vendor_award_profile(uei, fiscal_year=None):
+    """Build vendor profile combining entity registration + recent contract awards."""
+    result = {"uei": uei, "entity": None, "awards": None, "flags": []}
+
+    # Step 1: Entity registration
+    entity = safe_sam(sam_entity, {
+        "ueiSAM": uei,
+        "includeSections": "entityRegistration,coreData,assertions"
+    })
+    if "error" in entity:
+        result["entity"] = {"error": entity}
+        result["flags"].append("ENTITY_LOOKUP_FAILED")
+    elif entity.get("totalRecords", 0) == 0:
+        result["flags"].append("NOT_REGISTERED")
+    else:
+        e = entity["entityData"][0]
+        reg = e.get("entityRegistration", {})
+        core = e.get("coreData", {})
+        result["entity"] = {
+            "legalBusinessName": reg.get("legalBusinessName"),
+            "status": reg.get("registrationStatus"),
+            "cageCode": reg.get("cageCode"),
+            "expirationDate": reg.get("registrationExpirationDate"),
+            "businessTypes": [bt.get("businessTypeDesc") for bt in core.get("businessTypes", {}).get("businessTypeList", [])],
+            "primaryNaics": e.get("assertions", {}).get("goodsAndServices", {}).get("primaryNaics")
+        }
+
+    time.sleep(0.5)
+
+    # Step 2: Recent contract awards
+    award_params = {"awardeeUniqueEntityId": uei, "limit": "100"}
+    if fiscal_year:
+        award_params["fiscalYear"] = str(fiscal_year)
+
+    awards = safe_sam(sam_awards, award_params)
+    if "error" in awards:
+        result["awards"] = {"error": awards}
+        result["flags"].append("AWARDS_LOOKUP_FAILED")
+    else:
+        records = awards.get("awardSummary", [])
+        total_obligation = sum(
+            float(r.get("awardDetails", {}).get("dollars", {}).get("actionObligation") or 0)
+            for r in records
+        )
+        result["awards"] = {
+            "totalRecords": awards.get("totalRecords", 0),
+            "recordsReturned": len(records),
+            "totalActionObligation": total_obligation,
+            "agencies": list(set(
+                r.get("coreData", {}).get("federalOrganization", {}).get("contractingInformation", {}).get("contractingDepartment", {}).get("name", "UNKNOWN")
+                for r in records
+            )),
+            "recentAwards": [{
+                "piid": r.get("contractId", {}).get("piid"),
+                "dateSigned": r.get("awardDetails", {}).get("dates", {}).get("dateSigned"),
+                "obligation": r.get("awardDetails", {}).get("dollars", {}).get("actionObligation"),
+                "department": r.get("coreData", {}).get("federalOrganization", {}).get("contractingInformation", {}).get("contractingDepartment", {}).get("name"),
+                "naics": (r.get("coreData", {}).get("productOrServiceInformation", {}).get("principalNaics") or [{}])[0].get("code")
+            } for r in records[:10]]
+        }
+
+    return result
+```
+
 ---
 
-## 7. PSC Category Hierarchy
+## 8. PSC Category Hierarchy
 
 The PSC system organizes into two levels of categories above the 4-character PSC code:
 
@@ -531,11 +752,10 @@ Common PSC codes for professional services acquisitions:
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
-| **Skill was working but now every call fails** | **SAM.gov API keys expire every 90 days.** This is the most common reason the skill stops working. | Log into SAM.gov, go to your profile, regenerate your Public API Key, and update it in your Claude memory |
 | `deptname`/`subtier` not filtering | These params are SILENTLY IGNORED by the API; any value including garbage returns unfiltered results | Do NOT use. Post-filter in Python by checking `fullParentPathName` in results. Working filters: title, solnum, noticeid, ptype, ncode, ccode, typeOfSetAside, state, zip, rdlfrom/rdlto |
 | Opportunity description returns 404 | Description URL requires API key appended | Append `&api_key=KEY` to the description URL; use `get_opp_description()` helper |
 | Entity name search returns too many results | `legalBusinessName` does partial matching with no relevance ranking; JVs and subsidiaries appear before the parent | Use UEI or CAGE for exact lookup; if using name, scan results for best match on exact name |
@@ -547,7 +767,7 @@ Common PSC codes for professional services acquisitions:
 | Entity name with `&` returns 0 | API strips `&` from search terms; `JOHNSON & JOHNSON` becomes broken two-word query | Search by UEI/CAGE, or use single word from name (e.g., `legalBusinessName=JOHNSON`) and scan results |
 | Entity `size` > 10 returns 400 | Hard cap: "Size Cannot Exceed 10 Records" | Cannot override; paginate with `page` param (10 per page) or use extract mode for bulk |
 | Opportunity `limit=1000` works fine | Opportunities has no practical limit cap (unlike Entity's hard 10) | Use large limit values for Opportunities to minimize calls |
-| 401 API_KEY_INVALID (HTML response) | Expired or invalid API key; response is HTML, not JSON | Regenerate key in your SAM.gov profile; `safe_sam()` wrapper handles HTML responses gracefully |
+| 401 API_KEY_INVALID (HTML response) | Expired or invalid API key; response is HTML, not JSON | Regenerate key at sam.gov/profile/details; `safe_sam()` wrapper handles HTML responses gracefully |
 | Entity country code returns 0 | Used 2-char code (US, CA) instead of 3-char (USA, CAN) | All SAM.gov country codes are ISO alpha-3 (3 chars). Same applies to Exclusion `country` param |
 | exclusionURL returns 404 | URL contains literal `REPLACE_WITH_API_KEY` placeholder | String-replace the placeholder with your actual API key before fetching |
 | Opportunity ccode=R4 returns 0 | PSC filter requires exact 4-char code, no prefix matching | Use full PSC code (R425 not R4); look up child codes via PSC API if needed |
@@ -570,3 +790,12 @@ Common PSC codes for professional services acquisitions:
 | `publicDisplayFlag=N` | Entity opted out of public display | Public API key only returns limited data for opted-out entities; need FOUO system account for full data |
 | Forbidden characters in query | Params contain `& \| { } ^ \` | URL-encode or remove these characters |
 | PSC endpoint 404 | Wrong base path | PSC is at `/prod/locationservices/v1/api/publicpscdetails`, not under `/entity-information/` |
+| Contract Awards `vendorName` rejected | Parameter does not exist | Use `awardeeLegalBusinessName` for vendor name search, `awardeeUniqueEntityId` for UEI, `awardeeCageCode` for CAGE |
+| Contract Awards returns empty `awardResponse` wrapper | 0 results for query; response uses different wrapper than populated results | Check for both `awardSummary` (populated) and `awardResponse` (empty) keys; see Rule 26 |
+| Contract Awards error is plain text, not JSON | API returns plain text for param errors, HTML for auth errors | Parse content-type or catch JSON decode errors; do not assume JSON error bodies |
+| Contract Awards `limit=101` rejected | Max limit is 100 | Validate client-side; use offset-based pagination for more records |
+| Contract Awards `page` param returns empty | `page` is not a valid param; API silently returns nothing | Use `offset` for pagination, not `page`. offset=0 + limit=10 for first page, offset=10 for second page |
+| Contract Awards date format rejected | Used ISO 8601 (2026-01-01) | Use MM/dd/yyyy format: `01/01/2026` or bracket range `[01/01/2026,03/01/2026]` |
+| Contract Awards deleted records missing | Deleted records excluded by default | Pass `deletedStatus=Y` to include deleted records; there is no separate endpoint |
+| Contract Awards `totalRecords` type varies | Integer when populated, string when empty (in `awardResponse` wrapper) | Always convert to int: `int(d.get("totalRecords", 0))` |
+| FPDS.gov is gone | FPDS ezSearch decommissioned Feb 24, 2026; ATOM feed retires July 31, 2026 | Use the SAM.gov Contract Awards API at `/contract-awards/v1/search` as the replacement |
