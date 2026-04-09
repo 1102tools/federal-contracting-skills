@@ -116,7 +116,7 @@ Present:
   - Record status: `exclusionActions.listOfActions[0].recordStatus` (Active vs Inactive/Terminated). **NOT a top-level field.**
   - Activation date: `exclusionActions.listOfActions[0].activateDate`
   - Termination date: `exclusionActions.listOfActions[0].terminationDate`
-- **Cross-references**: `exclusionOtherInformation.crossReferencesList[].name` -- names of other excluded entities/individuals linked to this vendor (reveals fraud networks, affiliated excluded parties)
+- **Cross-references**: `exclusionOtherInformation.crossReferencesList[].name` -- names of other excluded entities/individuals linked to this vendor (reveals affiliated excluded parties)
 - **Summary statement**: "No active exclusions on record" or "ACTIVE EXCLUSION FOUND -- see details"
 
 Also search exclusions by entity name as a cross-check: `sam_exclusions({"q": legal_business_name})`. Some exclusions are filed under different UEIs or pre-UEI DUNS numbers. The name search may return records the UEI search misses.
@@ -274,7 +274,7 @@ Present the report in this order:
 
 ## Risk Flag Reference
 
-See the `vendor-intelligence-reference` skill for detailed flag definitions, thresholds, rationale, and ContractWatch lineage.
+See the `vendor-intelligence-reference` skill for detailed flag definitions, thresholds, rationale, and recommended actions.
 
 ## Example Prompts
 

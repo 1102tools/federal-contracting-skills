@@ -111,7 +111,7 @@ The contracting officer must determine that a prospective contractor meets ALL s
 - Source: SAM.gov Exclusions v4
 - Trigger: Any exclusion record with `recordStatus = "Active"`
 - Meaning: Vendor is currently debarred, suspended, or otherwise excluded. Award is generally prohibited per FAR 9.405 unless agency head makes a compelling reason determination.
-- ContractWatch lineage: None (ContractWatch is post-award; this is a pre-award gate)
+- Design note: Pre-award gate check; the most critical flag in the system
 - Action: Stop. Do not award without agency head determination.
 
 ### HIGH
@@ -120,15 +120,15 @@ The contracting officer must determine that a prospective contractor meets ALL s
 - Source: SAM.gov entity `entityStartDate`
 - Trigger: Entity incorporated/formed within last 180 days
 - Threshold: `today - entityStartDate <= 180 days`
-- Meaning: Very new entity. May lack financial resources, performance history, and organizational infrastructure. Common in shell company fraud schemes. Not disqualifying on its own.
-- ContractWatch lineage: F01 NEW_ENTITY (90 days). Widened to 180 days for pre-award because COs evaluate further in advance.
+- Meaning: Very new entity. May lack financial resources, performance history, and organizational infrastructure. Common in shell company schemes. Not disqualifying on its own.
+- Design note: 180-day window chosen because COs evaluate vendors well before award date. Wider than a post-award audit would use.
 - Action: Request financial capability documentation. Verify physical presence.
 
 **NO_FEDERAL_HISTORY**
 - Source: USASpending + SAM.gov Contract Awards
 - Trigger: Zero prior federal contract awards in lookback period (default 5 years)
 - Meaning: First-time federal contractor. Higher risk of performance issues, accounting system inadequacy, compliance gaps. Not disqualifying.
-- ContractWatch lineage: F04 NO_HISTORY_SOLE (required $10M+ sole source). Removed dollar/competition filter for pre-award generality.
+- Design note: No dollar or competition filter applied. Any zero-history vendor triggers regardless of award size or competition type.
 - Action: Consider pre-award survey (FAR 9.106). Request additional capability evidence.
 
 **AWARD_GROWTH_SPIKE**
@@ -136,7 +136,7 @@ The contracting officer must determine that a prospective contractor meets ALL s
 - Trigger: Any active contract where current obligation exceeds 300% of initial obligation
 - Threshold: `(current_obligation - initial_obligation) / initial_obligation >= 3.0`
 - Meaning: Contract grew far beyond original scope/price. May indicate poor estimating, scope creep, or deliberate low-bidding. Raises questions about vendor's cost management.
-- ContractWatch lineage: F05 MOD_CREEP (same 300% threshold)
+- Design note: 300% threshold balances sensitivity with false positives. Catches runaway growth without flagging normal option exercises.
 - Action: Review modification history on flagged contracts. Consider in FAR 9.104-1(c) performance assessment.
 
 ### MEDIUM
@@ -145,14 +145,14 @@ The contracting officer must determine that a prospective contractor meets ALL s
 - Source: SAM.gov entity `registrationExpirationDate`
 - Trigger: Registration expires within 60 days
 - Meaning: Vendor may become ineligible before award. FAR 4.1102 requires active SAM registration at time of award.
-- ContractWatch lineage: Adapted from F02 LATE_SAM (post-award: registered after award date)
+- Design note: Pre-award variant checks expiring registrations rather than late registrations
 - Action: Notify vendor to renew. Do not award after expiration.
 
 **NAICS_MISMATCH**
 - Source: SAM.gov assertions.goodsAndServices.naicsList vs user-provided NAICS
 - Trigger: Solicitation NAICS code not found in vendor's registered NAICS list
 - Meaning: Vendor does not self-identify as performing this type of work. May indicate capability gap or simply incomplete SAM profile. For SB set-asides, the NAICS code determines the size standard.
-- ContractWatch lineage: New flag (not in ContractWatch)
+- Design note: Critical for SB set-asides where NAICS determines size standard
 - Action: Verify vendor capability through other means. For SB set-asides, the NAICS must match.
 
 **EXCLUSION_HISTORY**
@@ -165,21 +165,21 @@ The contracting officer must determine that a prospective contractor meets ALL s
 - Source: SAM.gov entity search by address
 - Trigger: 3 or more SAM-registered entities at the same physical address
 - Meaning: Multiple entities at one address may indicate shell company networks, pass-through arrangements, or affiliated entities used for bid manipulation. Could also be a legitimate shared office building or incubator.
-- ContractWatch lineage: F10 SHARED_ADDRESS (same concept)
+- Design note: Well-known indicator in procurement oversight for shell company detection
 - Action: Review the other entities at the address. Check for common officers (OFFICER_OVERLAP). Could be innocuous (office building) or concerning (same principals, multiple entities bidding on same work).
 
 **SHARED_CAGE**
 - Source: SAM.gov entity search by CAGE code
 - Trigger: Multiple UEIs sharing the same CAGE code
 - Meaning: CAGE codes are supposed to be unique to a single entity. Sharing may indicate entity restructuring, acquisition, or data quality issues. Could also indicate affiliated entities.
-- ContractWatch lineage: F12 SHARED_CAGE_UEI (same concept)
+- Design note: CAGE codes should map to a single entity; sharing indicates restructuring or affiliated entities
 - Action: Verify entity identity. May be a legitimate parent/subsidiary relationship.
 
 **CONCENTRATION_RISK**
 - Source: USASpending spending by agency
 - Trigger: 80%+ of vendor's total federal contract dollars from a single awarding agency
 - Meaning: Vendor heavily dependent on one customer. Loss of that customer would threaten financial viability (FAR 9.104-1(a)). May also indicate preferential treatment or wired procurements.
-- ContractWatch lineage: New flag (not in ContractWatch)
+- Design note: Measures single-customer dependency as a financial viability indicator
 - Action: Consider financial viability. Not disqualifying but relevant to risk assessment.
 
 ### LOW
