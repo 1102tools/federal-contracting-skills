@@ -10,7 +10,7 @@ description: >
   or draft requirement language. Also trigger when the user says they need a
   SOW/PWS before building an IGCE, when they have a SOO and need to develop it
   into executable requirements, or when they need to reduce scope to fit a
-  budget and need to know what to cut. The SOW/PWS document NEVER contains
+  budget. The SOW/PWS document NEVER contains
   staffing tables, FTE counts, labor category counts, or IGCE-related content;
   that data lives in a separate chat-output handoff for the IGCE Builder
   skills (FFP, LH/T&M, CR). Do NOT use for IGCEs themselves (use IGCE Builder

@@ -5,22 +5,15 @@ description: >
   Transaction (OT) agreements under 10 USC 4021/4022. Produces milestone-
   based cost analysis workbooks with cost-sharing breakdowns, per-milestone
   funding profiles, and price reasonableness memos. Orchestrates BLS OEWS,
-  GSA CALC+, and GSA Per Diem skills for labor benchmarking but structures
-  the estimate around milestones instead of wrap rates or burden multipliers.
-  Handles NDC cost-sharing math, consortium management fees, and fixed-price
-  vs. cost-type milestone payment structures. Trigger for: OT cost analysis,
-  OTA cost estimate, OT price reasonableness, prototype cost estimate, OT
-  should-cost, OT milestone pricing, OT cost-sharing analysis, OT funding
-  profile, price this OT, estimate costs for this prototype, OT IGCE,
-  prototype IGCE, 10 USC 4021 cost analysis, milestone payment schedule,
-  build an OT cost analysis. Also trigger when the user has an OT project
-  description and needs cost analysis, when they have a performer proposed
-  price and need reasonableness assessment, or when they need to build a
-  funding profile for an OT agreement. Do NOT use for traditional FAR IGCEs
-  (use IGCE Builder FFP, LH/T&M, or CR). Do NOT use for OT project
-  descriptions (use OT Project Description Builder). Do NOT use for grant
-  budgets (use Grant Budget Builder). Requires BLS OEWS API, GSA CALC+
-  Ceiling Rates API, and GSA Per Diem Rates API skills.
+  GSA CALC+, and GSA Per Diem skills for labor benchmarking. Trigger for:
+  OT cost analysis, OTA cost estimate, OT price reasonableness, prototype
+  cost estimate, OT should-cost, OT milestone pricing, OT cost-sharing
+  analysis, OT funding profile, prototype IGCE, 10 USC 4021 cost analysis,
+  milestone payment schedule, build an OT cost analysis. Also trigger when
+  user has an OT project description and needs cost analysis or a performer
+  proposed price needing reasonableness assessment. Do NOT use for FAR IGCEs
+  (use IGCE Builder FFP, LH/T&M, or CR), OT project descriptions (use OT
+  Project Description Builder), or grant budgets (use Grant Budget Builder).
 ---
 
 # OT Cost Analysis

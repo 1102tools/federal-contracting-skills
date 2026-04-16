@@ -11,14 +11,12 @@ description: >
   justification, grant cost estimate, 2 CFR 200 budget, cooperative
   agreement budget, R01 budget, NIH budget, grant personnel costs,
   fringe benefits, indirect cost rate, NICRA, F&A rate, MTDC, grant
-  travel estimate, budget narrative, budget justification narrative,
-  subaward budget, or modular budget. Also trigger for grant-related
-  pricing, effort-based costing, or institutional rate lookups. Does
-  NOT cover contract IGCEs (use IGCE Builder FFP, LH/T&M, or CR for
-  FAR-based estimates). Does NOT cover NOFO program descriptions (use
-  grants-program-description-builder for the government-written "what"
-  document that precedes this budget skill). Requires BLS OEWS API
-  and GSA Per Diem Rates API skills.
+  travel estimate, budget narrative, subaward budget, or modular
+  budget. Also trigger for grant-related pricing or effort-based
+  costing. Does NOT cover contract IGCEs (use IGCE Builder FFP,
+  LH/T&M, or CR). Does NOT cover NOFO program descriptions (use
+  grants-program-description-builder). Requires BLS OEWS API and
+  GSA Per Diem Rates API skills.
 ---
 
 # Grants Budget Builder

@@ -5,23 +5,16 @@ description: >
   agreements under 10 USC 4021/4022. Produces the agreement attachment
   that replaces a SOW/PWS in OT prototype and production follow-on
   contexts. Structures work around TRL progression phases (design, build,
-  test, demonstrate) instead of task/subtask CLINs. Generates milestone
-  payment schedules tied to technical deliverables, not invoice periods.
-  Trigger for: OT project description, OTA project description, other
-  transaction agreement, prototype agreement, prototype project
-  description, OT scope, 10 USC 4021, 10 USC 4022, prototype OT,
-  production follow-on OT, TRL-based project description, milestone-based
-  scope, OT agreement attachment, write an OT project description, build
-  a prototype agreement. Also trigger when the user says they need a
-  project description before building an OT cost analysis, when they have
-  a BAA white paper or SOO and need to develop it into an OT project
-  description, or when they need to reduce OT prototype scope to fit
-  budget. The project description NEVER contains cost estimates, should-
-  cost figures, funding profiles, or cost-sharing calculations; that data
-  lives in a separate chat-output milestone handoff for the OT Cost
-  Analysis skill. Do NOT use for traditional SOW/PWS (use SOW/PWS
-  Builder). Do NOT use for OT cost analysis (use OT Cost Analysis). Do
-  NOT use for FAR Part 15 requirements.
+  test, demonstrate) with milestone payment schedules tied to technical
+  deliverables. Trigger for: OT project description, OTA project
+  description, other transaction agreement, prototype agreement, OT scope,
+  10 USC 4021, 10 USC 4022, prototype OT, production follow-on OT,
+  TRL-based project description, milestone-based scope, write an OT
+  project description. Also trigger when user needs a project description
+  before an OT cost analysis or has a BAA white paper/SOO to develop.
+  Never contains cost estimates, funding profiles, or cost-sharing
+  calculations. Do NOT use for SOW/PWS (use sow-pws-builder), OT cost
+  analysis (use OT Cost Analysis), or FAR Part 15 requirements.
 ---
 
 # OT Project Description Builder

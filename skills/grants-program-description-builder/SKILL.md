@@ -3,30 +3,18 @@ name: grants-program-description-builder
 description: >
   Build the Program Description section of a Notice of Funding Opportunity
   (NOFO) for federal grants and cooperative agreements under 2 CFR 200.
-  Produces a government-written .docx that drops into the agency's NOFO
-  template as the program scope sub-section, and a separate chat-only
-  handoff table for the Grants Budget Builder. This is the grants analog
-  to the SOW/PWS for FAR contracts and the OT Project Description for OT
-  agreements. Trigger for: grant program description, NOFO program
-  description, grant announcement program section, Notice of Funding
+  Produces a government-written .docx for the agency's NOFO template and
+  a chat-only handoff table for the Grants Budget Builder. Trigger for:
+  grant program description, NOFO program description, Notice of Funding
   Opportunity narrative, cooperative agreement scope, program purpose,
-  allowable activities, priority populations, expected outcomes, 2 CFR
-  200.202, 2 CFR 200.203, grant program scope, HHS NOFO, CDC NOFO, NIH
-  NOFO, HRSA NOFO, SAMHSA NOFO, write a program description for a grant,
-  build a grant announcement. Also trigger when the user says they need
-  a program description before building a grant budget, when they have
-  authorizing legislation or a policy memo and need to develop it into
-  a program description, or when they need to reduce program scope to
-  fit a funding envelope. The program description NEVER contains budget
-  figures, funding profiles, per-award cost estimates, or cost
-  categories; that data lives in a separate chat-output handoff for the
-  Grants Budget Builder skill. Do NOT use for grant budgets (use
-  grants-budget-builder). Do NOT use for a full NOFO assembly (this
-  skill produces the Program Description sub-section only). Do NOT use
-  for applicant-side grant narrative drafting (grantee writes that;
-  this is government side). Do NOT use for contract SOW/PWS (use
-  sow-pws-builder) or OT project descriptions (use
-  ot-project-description-builder).
+  allowable activities, expected outcomes, 2 CFR 200.202, 2 CFR 200.203,
+  grant program scope, HHS/CDC/NIH/HRSA/SAMHSA NOFO, write a program
+  description for a grant. Also trigger when user needs a program
+  description before a grant budget or has authorizing legislation to
+  develop. Never contains budget figures or cost categories. Do NOT use
+  for grant budgets (use grants-budget-builder), full NOFO assembly,
+  applicant-side narratives, contract SOW/PWS (use sow-pws-builder),
+  or OT project descriptions (use ot-project-description-builder).
 ---
 
 # Grants Program Description Builder
