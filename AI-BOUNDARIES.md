@@ -20,7 +20,7 @@ The test is simple. If the signer cannot defend every evaluative claim in the fi
 
 Agencies are using commercial LLMs for evaluation-adjacent work. No protest on AI-specific grounds has sustained yet, in part because the one filed was abandoned when the agency attested human evaluators did the work and the protester could not rebut. That will not last. GAO's most prevalent sustain ground in FY2025 was unreasonable technical evaluation. The third was unreasonable rejection of proposal, new to the top three. Both map directly to AI-assisted workflows that flag, rate, or eliminate without human reasoning behind the result.
 
-The real failure mode is not that AI writes badly. Modern models write persuasively. The failure is that they assert connections between a proposal and a FAR-compliant conclusion that the proposal does not actually support. When a protester compares the evaluation record against the proposal text and finds conclusions nothing in the proposal establishes, GAO sustains. The pattern is familiar. AI just produces it faster and more confidently.
+The real failure mode is not that LLMs write badly. Modern LLMs write persuasively. The failure is that they assert connections between a proposal and a FAR-compliant conclusion that the proposal does not actually support. When a protester compares the evaluation record against the proposal text and finds conclusions nothing in the proposal establishes, GAO sustains. The pattern is familiar. LLMs just produce it faster and more confidently.
 
 ## The Principle
 
