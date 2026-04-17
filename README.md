@@ -1,12 +1,12 @@
 # 1102tools Claude Skills
 
-Claude Skills for federal contracting professionals. No subscriptions, no paywalls. Every skill in this collection uses a public federal API that's free to query.
+Claude Skills for federal acquisition professionals.
 
 Website: [1102tools.com](https://1102tools.com)
 
 ![Architecture diagram showing how each instrument chains scope, pricing, and data sources. Market Research Builder pulls from USASpending and SAM.gov. FAR contracts: SOW/PWS Builder feeds three IGCE Builders (FFP, LH/T&M, Cost-Reimbursement) pulling from BLS OEWS, GSA CALC+, and GSA Per Diem. Other Transactions: OT Project Description Builder feeds OT Cost Analysis pulling from the same three data sources. Grants and Cooperative Agreements: Grants Budget Builder pulling from BLS OEWS and GSA Per Diem. Also available as standalone reference skills: eCFR, Federal Register, and Regulations.gov.](docs/architecture.png?v=2026-04-17c)
 
-> **Before you build:** Not every acquisition capability should be an AI tool. Dozens of potential skills were evaluated and several were intentionally excluded. Some are planned and coming. Others will never be built because they cross the line from data assembly into professional judgment -- the kind of output that would not survive a protest, would not be adopted by the workforce, and would not be worth the time to develop. Read **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)** for the full reasoning. It will save you development time and your users the backlash.
+**Before you build:** Not every acquisition capability should be an AI tool. Dozens of potential skills were evaluated and several were intentionally excluded because they cross the line from data assembly into professional judgment. See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 
 ## Skills
 
@@ -48,7 +48,7 @@ Website: [1102tools.com](https://1102tools.com)
 | [OT Project Description Builder](skills/ot-project-description-builder) | No key | -- | Milestone-based project descriptions for prototype OT agreements under 10 USC 4021/4022. Replaces the SOW/PWS for OTs: structures work around TRL progression phases and go/no-go gates instead of task/subtask CLINs. Handles NDC, small business, traditional (with cost sharing), and consortium-brokered agreements. Produces a .docx agreement attachment and a chat-only milestone handoff table for the OT Cost Analysis. |
 | [OT Cost Analysis](skills/ot-cost-analysis) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Should-cost estimates and price reasonableness analyses for OT agreements. Milestone-based pricing citing 10 USC 4021 instead of FAR 15.404. Handles cost-sharing math (10 USC 4022(d)), consortium management fees, fixed-price and cost-type milestone payments, and pre-solicitation budget planning. Produces a formula-driven .xlsx workbook with scenario analysis and a price reasonableness memo for the agreement file. |
 
-### Grants and Cooperative Agreement Skills
+### Grants and Cooperative Agreement Skill
 
 | Skill | Key | Requires | Description |
 |-------|-----|----------|-------------|
@@ -72,10 +72,6 @@ Tell Claude to remember your keys and it will use them automatically.
 2. In Claude: Customize > Skills > + > Create skill > Upload a skill > drag in each SKILL.md file individually
 3. For skills with a reference companion, install both
 4. Ask a question naturally. Claude reads the instructions and makes the API call.
-
-## What's Not Here
-
-If you're looking for a capability that doesn't exist in this collection, there are two possible reasons: it's planned, or it was evaluated and deliberately excluded. Proposal scoring, best value tradeoff analysis, responsibility determinations, negotiation strategy, OCI analysis, and several other capabilities were considered and rejected because they require warrant-level judgment that AI cannot replicate and the acquisition workforce will not accept. See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)** for the complete list and the reasoning behind each decision.
 
 ## License
 
