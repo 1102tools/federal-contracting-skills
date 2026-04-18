@@ -14,7 +14,7 @@ description: >
   staffing tables, FTE counts, labor category counts, or IGCE-related content;
   that data lives in a separate chat-output handoff for the IGCE Builder
   skills (FFP, LH/T&M, CR). Do NOT use for IGCEs themselves (use IGCE Builder
-  skills). Do NOT use for market research reports (use Market Research Builder).
+  skills). Do NOT use for market research reports.
 ---
 
 # SOW/PWS Builder
@@ -350,7 +350,6 @@ After the table, tell the user in plain chat prose: *"This staffing table is rea
 ## What This Skill Does NOT Cover
 
 - **Pricing or cost estimates** — use IGCE Builder skills (FFP, LH/T&M, CR)
-- **Market research** — use Market Research Builder
 - **Source selection criteria** — separate document, though CLIN structure informs it
 - **J&A or sole source justification** — separate document
 - **Full QASP** — this skill includes a QASP summary table; a detailed QASP with surveillance schedules is a separate deliverable

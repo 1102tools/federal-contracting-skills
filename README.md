@@ -4,7 +4,7 @@ Claude Skills for federal acquisition professionals.
 
 Website: [1102tools.com](https://1102tools.com)
 
-![Architecture diagram showing how each instrument chains scope, pricing, and data sources. Market Research Builder pulls from USASpending and SAM.gov. FAR contracts: SOW/PWS Builder feeds three IGCE Builders (FFP, LH/T&M, Cost-Reimbursement) pulling from BLS OEWS, GSA CALC+, and GSA Per Diem. Other Transactions: OT Project Description Builder feeds OT Cost Analysis pulling from the same three data sources. Grants and Cooperative Agreements: Grants Budget Builder pulling from BLS OEWS and GSA Per Diem. Also available as standalone reference skills: eCFR, Federal Register, and Regulations.gov.](docs/architecture.png?v=2026-04-17d)
+![Architecture diagram showing how each instrument chains scope, pricing, and data sources. FAR contracts: SOW/PWS Builder feeds three IGCE Builders (FFP, LH/T&M, Cost-Reimbursement) pulling from BLS OEWS, GSA CALC+, and GSA Per Diem. Other Transactions: OT Project Description Builder feeds OT Cost Analysis pulling from the same three data sources. Grants and Cooperative Agreements: Grants Budget Builder pulling from BLS OEWS and GSA Per Diem. Also available as standalone reference skills: USASpending, SAM.gov, eCFR, Federal Register, and Regulations.gov.](docs/architecture.png?v=2026-04-17e)
 
 **Before you build:** Not every acquisition capability should be an AI tool. Dozens of potential skills were evaluated and several were intentionally excluded because they cross the line from data assembly into professional judgment.
 
@@ -41,7 +41,6 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 | [IGCE Builder: FFP](skills/igce-builder-ffp) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Firm-fixed-price IGCEs with layered wrap rate model (fringe, overhead, G&A, profit). |
 | [IGCE Builder: LH/T&M](skills/igce-builder-lh-tm) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Labor Hour and T&M IGCEs with burden multiplier pricing. |
 | [IGCE Builder: Cost-Reimbursement](skills/igce-builder-cr) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | CPFF, CPAF, CPIF IGCEs with fee structure analysis and statutory fee caps. |
-| [Market Research Builder](skills/market-research-builder) | No key* | USASpending API | FAR Part 10 market research report from USASpending data. |
 
 ### Other Transaction (OT) Skills
 

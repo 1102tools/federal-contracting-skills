@@ -396,7 +396,6 @@ Include rows for every milestone derived in Phase 1. After the table, tell the u
 - **Cost analysis or should-cost estimates** -- use OT Cost Analysis
 - **Traditional SOW/PWS** -- use SOW/PWS Builder
 - **IGCE for FAR contracts** -- use IGCE Builder skills (FFP, LH/T&M, CR)
-- **Market research** -- use Market Research Builder (though OT market research has different emphasis)
 - **NDC eligibility determination** -- agreements officer determination per 10 USC 3014
 - **OT competition strategy** -- this skill accepts the user's competition approach
 - **Agreement terms and conditions** -- legal review required; this skill covers technical scope only
