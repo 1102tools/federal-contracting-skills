@@ -37,7 +37,7 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 
 | Skill | Key | Requires | Description |
 |-------|-----|----------|-------------|
-| [SOW/PWS Builder](skills/sow-pws-builder) | No key | -- | Structured scope decision tree producing contract-file-ready SOW or PWS. FAR 37.102(d) compliant: staffing handoff for the IGCE Builder is delivered as chat output, never embedded in the document body. |
+| [SOW/PWS Builder](skills/sow-pws-builder) | No key | -- | Structured scope decision tree producing contract-file-ready SOW or PWS. FAR 37.102(d) compliant: staffing handoff for the IGCE Builder is delivered as chat output, never embedded in the document body. Independently tested across 8 scenarios and 2 Claude models (83 of 84 assertions passed). Testing Record: [markdown](skills/sow-pws-builder/TESTING.md) or [PDF](skills/sow-pws-builder/TESTING.pdf). |
 | [IGCE Builder: FFP](skills/igce-builder-ffp) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Firm-fixed-price IGCEs with layered wrap rate model (fringe, overhead, G&A, profit). |
 | [IGCE Builder: LH/T&M](skills/igce-builder-lh-tm) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Labor Hour and T&M IGCEs with burden multiplier pricing. |
 | [IGCE Builder: Cost-Reimbursement](skills/igce-builder-cr) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | CPFF, CPAF, CPIF IGCEs with fee structure analysis and statutory fee caps. |
@@ -50,6 +50,32 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 | [OT Cost Analysis](skills/ot-cost-analysis) | No key* | BLS OEWS, GSA CALC+, GSA Per Diem | Should-cost estimates and price reasonableness analyses for OT agreements. Milestone-based pricing citing 10 USC 4021 instead of FAR 15.404. Handles cost-sharing math (10 USC 4022(d)), consortium management fees, fixed-price and cost-type milestone payments, and pre-solicitation budget planning. Produces a formula-driven .xlsx workbook with scenario analysis and a price reasonableness memo for the agreement file. |
 
 *Uses keys from other installed skills. No additional key needed.
+
+## Testing and Validation
+
+Skills in this repo are progressively being run through independent end-to-end validation. Each testing wave uses the following methodology:
+
+- Scenarios are run on claude.ai web chat, the same environment real users run in.
+- Each worker output is graded by a separate Claude instance (Claude Code Opus 4.7 with 1M context, max effort) reading only the final artifact and chat transcript, with no access to the worker's drafting reasoning.
+- Grading is binary pass/fail against a 14-point assertion matrix covering FAR compliance, document structure, voice consistency, and handoff format.
+- Findings that surface real bugs or consistent behavioral gaps become skill patches.
+- Every tested skill ships with a public Testing Record documenting methodology, results, and changes made.
+
+### Orchestration Skills Testing Records
+
+| Skill | Scenarios | Models tested | Assertion result | Testing Record |
+|-------|-----------|---------------|------------------|----------------|
+| [SOW/PWS Builder](skills/sow-pws-builder) | 8 | Opus 4.7 + Sonnet 4.6 | 83 of 84 passed, 1 fixed | [markdown](skills/sow-pws-builder/TESTING.md) / [PDF](skills/sow-pws-builder/TESTING.pdf) |
+| [IGCE Builder: FFP](skills/igce-builder-ffp) | Pending | -- | -- | Not yet published |
+| [IGCE Builder: LH/T&M](skills/igce-builder-lh-tm) | Pending | -- | -- | Not yet published |
+| [IGCE Builder: Cost-Reimbursement](skills/igce-builder-cr) | Pending | -- | -- | Not yet published |
+
+### Other Transaction (OT) Skills Testing Records
+
+| Skill | Scenarios | Models tested | Assertion result | Testing Record |
+|-------|-----------|---------------|------------------|----------------|
+| [OT Project Description Builder](skills/ot-project-description-builder) | Pending | -- | -- | Not yet published |
+| [OT Cost Analysis](skills/ot-cost-analysis) | Pending | -- | -- | Not yet published |
 
 ## API Keys
 

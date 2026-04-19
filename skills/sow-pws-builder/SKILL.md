@@ -99,6 +99,7 @@ When the user provides an existing SOO:
 2. **Gap identification.** Flag what the SOO provides vs. what a SOW/PWS needs:
    - ✅ Typically present in SOO: background, high-level objectives, constraints, PoP, location
    - ❌ Typically missing from SOO: task decomposition, staffing, deliverables with acceptance criteria, CLIN structure, QASP metrics, reporting cadence, transition details
+   - ⚠️ If the SOO's scope implies a standard it doesn't explicitly state (availability for high-volume systems, security for PII/FISMA systems, continuity for mission-critical systems), add the implied objective and flag it in Section 14 as a derived objective.
 
 3. **Decision bridge.** Present the gaps as the questions Phase 1 will answer. Frame it as: "The SOO tells us what the agency wants to achieve. Phase 1 asks the questions that turn objectives into executable requirements."
 
@@ -107,6 +108,10 @@ When the user provides an existing SOO:
 ## Phase 1: Scope Decision Tree
 
 Ask questions in this sequence. Each decision narrows scope and implies staffing. Present as structured choices, not open-ended questions. Collect in a single pass where possible.
+
+**Phase 1 execution:** On platforms that expose a structured multi-choice prompt tool (claude.ai web chat provides AskUserQuestion), use it for Acquisition Strategy Intake and Blocks 1-6. Batch 3-4 related questions per prompt block. Reserve prose for genuinely open-ended answers (ticket volume, system names, incumbent details). Every multi-choice question must include an "Other" / "Something else" free-text escape.
+
+**Anti-redundancy:** Before asking any framing or scope question, check whether the user's initial prompt already answers it. Do not re-ask explicit answers; confirm silently and proceed.
 
 ### Block 1: Mission and Service Model
 
@@ -184,7 +189,16 @@ O&M                     | Systems Admin       | 2         | 50% of dev staffing 
 
 ## Phase 2: Document Assembly
 
-Generate the SOW or PWS using the docx skill. Read `/mnt/skills/public/docx/SKILL.md` before generating output.
+### Phase 2 Invocation Gate
+
+Before invoking the docx skill for document generation, present a Phase 1 Decision Summary in chat. The summary must include:
+- The three framing answers (SOW/PWS, contract type, commercial/non-commercial)
+- All derived defaults with one-line rationale for each
+- The Section 3 structure (task areas for SOW, performance objectives for PWS)
+
+Wait for the user to reply "proceed" (or correct any item) before generating the .docx. Do this even when the user has waived interactive Phase 1 — it provides a catch point before a large document generation locks in framing errors and preserves progress if the session is interrupted.
+
+Generate the SOW or PWS using the docx skill. Read `/mnt/skills/public/docx/SKILL.md` before generating output. Include a Table of Contents after the title block when the document will contain more than 8 sections.
 
 ### SOW/PWS Section Structure
 
@@ -245,12 +259,15 @@ Generate the SOW or PWS using the docx skill. Read `/mnt/skills/public/docx/SKIL
 **Section 12: Quality Assurance Surveillance Plan (QASP) Summary**
 - Performance metrics table: Metric | Standard | AQL | Method | Frequency | Incentive
 - Full QASP may be a separate document; include summary here
+- For SOW documents, title this section "Inspection and Acceptance" and cite FAR 52.246-series clauses as the inspection basis. For PWS documents, keep "QASP Summary" and cite FAR 37.602 / 46.401. Table structure is identical; label and legal basis differ.
 
 **Section 13: Transition**
 - 13.1 Transition-In (if applicable): knowledge transfer, incumbent cooperation, parallel operations
 - 13.2 Transition-Out: data return, documentation, contractor cooperation, timeline
 
 **Section 14: Constraints and Assumptions**
+- Document each derived default using a 4-column table: ID | Assumption/Default Applied | Rationale | CO or Program Office Action Required. Mark each item [DEFAULT] so the CO can scan for items requiring confirmation before solicitation release.
+- **Workflow C (Scope Reduction) — cut documentation compliance:** When documenting reductions in Section 14, describe prior and revised scope in terms of CAPABILITIES AND COVERAGE, not staffing counts. The document body remains subject to FAR 37.102(d) even for historical/prior-state descriptions. Compliant: "Prior: standing detection engineering capability; Revised: cadence-based deliverable model (12 detections/quarter)." NON-compliant: "Prior: 2-3 FTE detection engineers; Revised: 1 FTE lead." Each cut block uses: Prior Scope (capability) | Revised Scope (capability) | Estimated Annual Savings | Rationale | Residual Risk.
 
 **Appendices** (as applicable):
 - A: Current Environment Description
@@ -284,6 +301,8 @@ Generate the SOW or PWS using the docx skill. Read `/mnt/skills/public/docx/SKIL
 **Every requirement must be:** specific, measurable, achievable, relevant, and time-bound. If a requirement fails any of these, flag it for the user during assembly.
 
 ## Phase 3: Validation and Handoff
+
+**UNCONDITIONAL RULE:** At the end of every run, present the Staffing Handoff Table as a markdown block in chat. This is REQUIRED, not optional, regardless of contract type, commercial status, or whether the user mentions the IGCE Builder. The table is informational for commercial FFP (where the contractor owns labor mix risk), and load-bearing for T&M/LH/CR. In both cases, emit it. Do not skip or self-edit based on judgment that the user "won't need it."
 
 ### Document Review Checklist
 
