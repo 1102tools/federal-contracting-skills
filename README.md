@@ -51,6 +51,94 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 
 *Uses keys from other installed skills. No additional key needed.
 
+## MCP Servers
+
+Want more consistent results across runs? Install the MCP servers. Each of the 8 API data source skills above also ships as a Model Context Protocol (MCP) server on PyPI. When installed in Claude Desktop or another MCP client, orchestration skills call these servers directly for deterministic tool calls instead of letting Claude generate API request code through SKILL.md instructions alone.
+
+### What is MCP?
+
+Model Context Protocol is Anthropic's open standard for LLM applications to communicate with external tools and data sources. MCP servers run locally, expose a set of callable tools, and return structured responses. They work in any MCP-compatible client including [Claude Desktop](https://claude.ai/download), Claude Code, Cursor, Cline, Continue, and Zed.
+
+### Why use the MCP servers?
+
+- **Deterministic tool calls.** Every call to `search_awards()` produces the same structured output, rather than Claude generating slightly different API request code across runs.
+- **Orchestration skills prefer them.** If the SAM.gov MCP is installed, the SOW/PWS Builder and IGCE Builder skills use it for vendor lookups instead of falling back to API-call generation through SKILL.md.
+- **Independently hardened.** Each server went through 3 to 6 audit rounds with live testing against the production API. See each TESTING.md for the full record.
+- **Published to PyPI with Trusted Publisher.** Install via `uvx` with no manual Python environment setup.
+
+### Install
+
+1. Install [Claude Desktop](https://claude.ai/download) on Mac or Windows.
+2. Open `claude_desktop_config.json`:
+   - Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+3. Paste an `mcpServers` block for each server you want. Example config for all 8:
+
+```json
+{
+  "mcpServers": {
+    "bls-oews": {
+      "command": "uvx",
+      "args": ["bls-oews-mcp"],
+      "env": {"BLS_API_KEY": "your-key-here"}
+    },
+    "ecfr": {
+      "command": "uvx",
+      "args": ["ecfr-mcp"]
+    },
+    "federal-register": {
+      "command": "uvx",
+      "args": ["federal-register-mcp"]
+    },
+    "gsa-calc": {
+      "command": "uvx",
+      "args": ["gsa-calc-mcp"]
+    },
+    "gsa-perdiem": {
+      "command": "uvx",
+      "args": ["gsa-perdiem-mcp"],
+      "env": {"PERDIEM_API_KEY": "your-key-here"}
+    },
+    "regulations-gov": {
+      "command": "uvx",
+      "args": ["regulationsgov-mcp"],
+      "env": {"REGULATIONS_GOV_API_KEY": "your-key-here"}
+    },
+    "sam-gov": {
+      "command": "uvx",
+      "args": ["sam-gov-mcp"],
+      "env": {"SAM_API_KEY": "your-key-here"}
+    },
+    "usaspending": {
+      "command": "uvx",
+      "args": ["usaspending-gov-mcp"]
+    }
+  }
+}
+```
+
+4. Restart Claude Desktop.
+5. Orchestration skills will use the installed MCP servers automatically when available.
+
+See [API Keys](#api-keys) below for where to get free keys for the 4 servers that need them. `ecfr`, `federal-register`, `gsa-calc`, and `usaspending` need no key.
+
+### All 8 MCP servers
+
+Each repo ships with a TESTING.md documenting its hardening record. Click through for bug counts, audit rounds, and signature bug stories.
+
+| MCP | Version | Tests | Source | Testing Record |
+|---|---|---|---|---|
+| bls-oews-mcp | 0.2.2 | 60 | [GitHub](https://github.com/1102tools/bls-oews-mcp) | [TESTING.md](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
+| ecfr-mcp | 0.2.1 | 101 | [GitHub](https://github.com/1102tools/ecfr-mcp) | [TESTING.md](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
+| federal-register-mcp | 0.2.2 | 77 | [GitHub](https://github.com/1102tools/federal-register-mcp) | [TESTING.md](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
+| gsa-calc-mcp | 0.2.2 | 117 | [GitHub](https://github.com/1102tools/gsa-calc-mcp) | [TESTING.md](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
+| gsa-perdiem-mcp | 0.2.1 | 172 | [GitHub](https://github.com/1102tools/gsa-perdiem-mcp) | [TESTING.md](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
+| regulationsgov-mcp | 0.2.0 | 51 | [GitHub](https://github.com/1102tools/regulationsgov-mcp) | [TESTING.md](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
+| sam-gov-mcp | 0.3.1 | 79 | [GitHub](https://github.com/1102tools/sam-gov-mcp) | [TESTING.md](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
+| usaspending-gov-mcp | 0.2.3 | 62 | [GitHub](https://github.com/1102tools/usaspending-gov-mcp) | [TESTING.md](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
+
+Across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed during hardening.
+
 ## Testing and Validation
 
 Skills in this repo are progressively being run through independent end-to-end validation. Each testing wave uses the following methodology:
@@ -76,6 +164,23 @@ Skills in this repo are progressively being run through independent end-to-end v
 |-------|-----------|---------------|------------------|----------------|
 | [OT Project Description Builder](skills/ot-project-description-builder) | Pending | -- | -- | Not yet published |
 | [OT Cost Analysis](skills/ot-cost-analysis) | Pending | -- | -- | Not yet published |
+
+### MCP Servers Testing Records
+
+MCP servers use a different testing methodology from the skills above: instead of scenario-graded assertions, each server was hardened through multi-round live audits targeting input validation, response-shape fragility, and silent-wrong-data bugs. Each was probed against its production API with edge cases, injection attempts, boundary values, and unusual response shapes. See each TESTING.md for the round-by-round breakdown.
+
+| MCP | Audit rounds | Regression tests | Bugs fixed | Testing Record |
+|---|---|---|---|---|
+| [bls-oews-mcp](https://github.com/1102tools/bls-oews-mcp) | 5 | 60 | 22 | [TESTING.md](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
+| [ecfr-mcp](https://github.com/1102tools/ecfr-mcp) | 5 | 101 | 72 | [TESTING.md](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
+| [federal-register-mcp](https://github.com/1102tools/federal-register-mcp) | 4 | 77 | ~30 | [TESTING.md](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
+| [gsa-calc-mcp](https://github.com/1102tools/gsa-calc-mcp) | 4 | 117 | 86 | [TESTING.md](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
+| [gsa-perdiem-mcp](https://github.com/1102tools/gsa-perdiem-mcp) | 6 | 172 | 55 | [TESTING.md](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
+| [regulationsgov-mcp](https://github.com/1102tools/regulationsgov-mcp) | 3 | 51 | 22 | [TESTING.md](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
+| [sam-gov-mcp](https://github.com/1102tools/sam-gov-mcp) | 4 | 79 | 46 | [TESTING.md](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
+| [usaspending-gov-mcp](https://github.com/1102tools/usaspending-gov-mcp) | 4 | 62 | 15 | [TESTING.md](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
+
+Combined across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed.
 
 ## API Keys
 
