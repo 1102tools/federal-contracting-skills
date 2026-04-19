@@ -128,14 +128,14 @@ Each repo ships with a TESTING.md documenting its hardening record. Click throug
 
 | MCP | Version | Tests | Source | Testing Record |
 |---|---|---|---|---|
-| bls-oews-mcp | 0.2.2 | 60 | [GitHub](https://github.com/1102tools/bls-oews-mcp) | [TESTING.md](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
-| ecfr-mcp | 0.2.1 | 101 | [GitHub](https://github.com/1102tools/ecfr-mcp) | [TESTING.md](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
-| federal-register-mcp | 0.2.2 | 77 | [GitHub](https://github.com/1102tools/federal-register-mcp) | [TESTING.md](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
-| gsa-calc-mcp | 0.2.2 | 117 | [GitHub](https://github.com/1102tools/gsa-calc-mcp) | [TESTING.md](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
-| gsa-perdiem-mcp | 0.2.1 | 172 | [GitHub](https://github.com/1102tools/gsa-perdiem-mcp) | [TESTING.md](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
-| regulationsgov-mcp | 0.2.0 | 51 | [GitHub](https://github.com/1102tools/regulationsgov-mcp) | [TESTING.md](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
-| sam-gov-mcp | 0.3.1 | 79 | [GitHub](https://github.com/1102tools/sam-gov-mcp) | [TESTING.md](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
-| usaspending-gov-mcp | 0.2.3 | 62 | [GitHub](https://github.com/1102tools/usaspending-gov-mcp) | [TESTING.md](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
+| bls-oews-mcp | 0.2.2 | 60 | [GitHub](https://github.com/1102tools/bls-oews-mcp) | [Testing Record](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
+| ecfr-mcp | 0.2.1 | 101 | [GitHub](https://github.com/1102tools/ecfr-mcp) | [Testing Record](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
+| federal-register-mcp | 0.2.2 | 77 | [GitHub](https://github.com/1102tools/federal-register-mcp) | [Testing Record](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
+| gsa-calc-mcp | 0.2.2 | 117 | [GitHub](https://github.com/1102tools/gsa-calc-mcp) | [Testing Record](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
+| gsa-perdiem-mcp | 0.2.1 | 172 | [GitHub](https://github.com/1102tools/gsa-perdiem-mcp) | [Testing Record](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
+| regulationsgov-mcp | 0.2.0 | 51 | [GitHub](https://github.com/1102tools/regulationsgov-mcp) | [Testing Record](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
+| sam-gov-mcp | 0.3.1 | 79 | [GitHub](https://github.com/1102tools/sam-gov-mcp) | [Testing Record](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
+| usaspending-gov-mcp | 0.2.3 | 62 | [GitHub](https://github.com/1102tools/usaspending-gov-mcp) | [Testing Record](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
 
 Across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed during hardening.
 
@@ -171,14 +171,14 @@ MCP servers use a different testing methodology from the skills above: instead o
 
 | MCP | Audit rounds | Regression tests | Bugs fixed | Testing Record |
 |---|---|---|---|---|
-| [bls-oews-mcp](https://github.com/1102tools/bls-oews-mcp) | 5 | 60 | 22 | [TESTING.md](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
-| [ecfr-mcp](https://github.com/1102tools/ecfr-mcp) | 5 | 101 | 72 | [TESTING.md](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
-| [federal-register-mcp](https://github.com/1102tools/federal-register-mcp) | 4 | 77 | ~30 | [TESTING.md](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
-| [gsa-calc-mcp](https://github.com/1102tools/gsa-calc-mcp) | 4 | 117 | 86 | [TESTING.md](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
-| [gsa-perdiem-mcp](https://github.com/1102tools/gsa-perdiem-mcp) | 6 | 172 | 55 | [TESTING.md](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
-| [regulationsgov-mcp](https://github.com/1102tools/regulationsgov-mcp) | 3 | 51 | 22 | [TESTING.md](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
-| [sam-gov-mcp](https://github.com/1102tools/sam-gov-mcp) | 4 | 79 | 46 | [TESTING.md](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
-| [usaspending-gov-mcp](https://github.com/1102tools/usaspending-gov-mcp) | 4 | 62 | 15 | [TESTING.md](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
+| [bls-oews-mcp](https://github.com/1102tools/bls-oews-mcp) | 5 | 60 | 22 | [Testing Record](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
+| [ecfr-mcp](https://github.com/1102tools/ecfr-mcp) | 5 | 101 | 72 | [Testing Record](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
+| [federal-register-mcp](https://github.com/1102tools/federal-register-mcp) | 4 | 77 | ~30 | [Testing Record](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
+| [gsa-calc-mcp](https://github.com/1102tools/gsa-calc-mcp) | 4 | 117 | 86 | [Testing Record](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
+| [gsa-perdiem-mcp](https://github.com/1102tools/gsa-perdiem-mcp) | 6 | 172 | 55 | [Testing Record](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
+| [regulationsgov-mcp](https://github.com/1102tools/regulationsgov-mcp) | 3 | 51 | 22 | [Testing Record](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
+| [sam-gov-mcp](https://github.com/1102tools/sam-gov-mcp) | 4 | 79 | 46 | [Testing Record](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
+| [usaspending-gov-mcp](https://github.com/1102tools/usaspending-gov-mcp) | 4 | 62 | 15 | [Testing Record](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
 
 Combined across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed.
 
