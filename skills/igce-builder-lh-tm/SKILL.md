@@ -43,7 +43,7 @@ If a key is missing, prompt the user to register: BLS at https://data.bls.gov/re
 ## Workflow Selection
 
 ### Workflow A-LH: Labor Hour IGCE (Default)
-User needs a cost estimate for a Labor Hour contract. Labor only, no materials. Execute Steps 1 through 8.
+User needs a cost estimate for a Labor Hour contract. Labor only, no materials. Execute Steps 1 through 9.
 Triggers: "build an IGCE," "labor hour IGCE," "LH estimate," "estimate costs for," "price a requirement."
 
 ### Workflow A-TM: Time-and-Materials IGCE
@@ -78,6 +78,7 @@ Ask for everything in a single pass. Provide defaults where noted.
 | Staffing | Headcount per labor category | 2 developers, 1 analyst, 1 PM |
 | Hours per year | Productive hours per person (default: 1,880) | 1,880 |
 | Period of performance | Base year + option years | Base + 2 OYs |
+| Contract start date | For wage aging | 2026-10-01 |
 
 ### Optional Inputs (Defaults Applied If Not Provided)
 
@@ -85,9 +86,10 @@ Ask for everything in a single pass. Provide defaults where noted.
 |-------|---------|-------|
 | Burden multiplier | 2.0x | Mid scenario; low (1.8x) and high (2.2x) also produced |
 | Escalation rate | 2.5%/yr | Applied to labor, travel, and materials |
+| Shift coverage | Single shift | Specify 24x7 if needed; Step 0.5 computes FTE |
 | Travel destinations | None | City/state per destination |
 | Travel frequency | None | Trips/year per destination |
-| Travel duration | None | Nights per trip |
+| Travel duration | None | Nights per trip (0 = day trip) |
 | Number of travelers | All staff | Travelers per trip |
 | Travel months | Max monthly rate | Specific months if known |
 | FY for per diem | Current federal FY | Compute at build time (Oct-Sep cycle) |
@@ -117,6 +119,7 @@ If user does not specify, use 2.0x as mid and produce low (1.8x) and high (2.2x)
 |----------|-------|--------|
 | Standard work year | 2,080 hours | 40 hrs x 52 weeks; converts annual wages to hourly |
 | Default productive hours | 1,880 hours/year | 2,080 minus holidays and avg leave |
+| Annual coverage hours (24x7) | 8,760 hours | 24 x 365; divide by 2,080 × availability for FTE |
 | Default burden multiplier | 2.0x | Mid-range professional services |
 | Low scenario burden | 1.8x | Lower bound for scenario analysis |
 | High scenario burden | 2.2x | Upper bound for scenario analysis |
@@ -139,11 +142,13 @@ Converts an unstructured SOW/PWS into structured pricing inputs.
 
 2. **Task decomposition.** Parse into discrete task areas with description, skill discipline, complexity, and recurring vs. finite classification.
 
-3. **Labor category mapping.** Map tasks to SOC codes using Step 1 heuristics. When a task spans disciplines, map to multiple categories.
+3. **Domain triage.** Identify agency domain (DoD / IC / DOE / civilian IT / research / medical) BEFORE SOC mapping. Domain signals which SOC block applies: DOE → 17-2xxx physical engineering; IC/DoD cyber → 15-1212; civilian IT → 15-125x software/systems; research → 19-1xxx / 15-2xxx; medical → 29-xxxx.
 
-4. **Staffing estimation.** Estimate FTEs per category based on scope indicators (system count, shift coverage, surge language, site count). Present as ranges when ambiguous.
+4. **Labor category mapping.** Map tasks to SOC codes using Step 1 heuristics with domain triage result. When a task spans disciplines, map to multiple categories.
 
-5. **Present decomposition table** for user validation:
+5. **Staffing estimation.** Estimate FTEs per category based on scope indicators (system count, shift coverage, surge language, site count). If 24x7 coverage is required, invoke Step 0.5. Present as ranges when ambiguous.
+
+6. **Present decomposition table** for user validation:
 ```
 Task Area               | Labor Category      | SOC Code | Est. FTEs | Basis
 Application Development | Software Developer  | 15-1252  | 2-3       | 3 apps, agile
@@ -151,18 +156,43 @@ Security Operations     | InfoSec Analyst     | 15-1212  | 1-2       | Continuou
 Project Oversight       | Project Manager     | 13-1082  | 1         | Single contract
 ```
 
-6. **User validation gate.** Confirm before proceeding. Also determine LH vs. T&M: "Does this requirement include materials the contractor will procure (software licenses, cloud hosting, hardware)? If yes, I'll build a T&M IGCE with materials. If labor only, I'll build LH."
+7. **User validation gate.** Confirm before proceeding. Also determine LH vs. T&M: "Does this requirement include materials the contractor will procure (software licenses, cloud hosting, hardware)? If yes, I'll build a T&M IGCE with materials. If labor only, I'll build LH."
+
+### Step 0.5: Shift Coverage Staffing (If 24x7 or Multi-Shift)
+
+If the requirement specifies 24x7 coverage, around-the-clock SOC, NOSC, help desk, or continuous monitoring, headcount must be grossed up from productive hours to coverage hours.
+
+**Single-seat 24x7 (one analyst always on duty):**
+```
+annual_coverage_hours = 24 * 365 = 8,760
+productive_hours_per_fte = 2,080
+availability_factor = 0.50   # leave, training, turnover, overlap
+single_seat_fte = 8,760 / (2,080 * availability_factor) = ~8.4 FTE
+```
+Simplification: use 4.2 FTE for single-seat 24x7 as the common industry convention (accounts for 50% availability + leave + overlap).
+
+**Double-seat 24x7 (two analysts always on duty):** 8.4 FTE.
+
+**12x5 coverage (business hours, weekdays only):** 60 hrs/wk × 52 = 3,120 annual hrs. 3,120 / 1,880 = 1.66 FTE single-seat, ~2 FTE with overlap.
+
+**16x7 coverage (extended hours, every day):** 16 × 365 = 5,840 annual hrs. 5,840 / 1,880 × availability = ~3.1 FTE single-seat.
+
+Document the FTE math in Sheet 5 Methodology. Do NOT quietly use 3 FTE for 24x7 coverage: that understaffs by 28%.
 
 ### Step 1: Map Labor Categories to SOC Codes
 
-Map user job titles to SOC codes. Common mappings:
+Map user job titles to SOC codes. Apply domain triage from Step 0 first.
+
+**IT and Professional Services (most common):**
 
 | Common Title | SOC Code | BLS Title |
 |-------------|----------|-----------|
-| Program Manager | 11-1021 | General and Operations Managers |
+| Program Manager (general ops) | 11-1021 | General and Operations Managers |
+| Program Manager (IT) | 11-3021 | Computer and Information Systems Managers |
+| Program Manager (engineering) | 11-9041 | Architectural and Engineering Managers |
 | Project Manager | 13-1082 | Project Management Specialists |
 | Management Analyst | 13-1111 | Management Analysts |
-| Systems Engineer / Analyst | 15-1211 | Computer Systems Analysts |
+| Systems Engineer / Analyst (IT) | 15-1211 | Computer Systems Analysts |
 | Software Developer | 15-1252 | Software Developers |
 | Cybersecurity / InfoSec | 15-1212 | Information Security Analysts |
 | Network Architect | 15-1241 | Computer Network Architects |
@@ -174,13 +204,51 @@ Map user job titles to SOC codes. Common mappings:
 | Technical Writer | 27-3042 | Technical Writers |
 | Contracting Specialist | 13-1020 | Buyers and Purchasing Agents |
 
-When mapping is ambiguous, query multiple SOC codes and present the range.
+**Physical / DOE / Defense Engineering (use these for hardware, labs, weapons systems, DOE M&O, physical infrastructure):**
+
+| Common Title | SOC Code | BLS Title |
+|-------------|----------|-----------|
+| Aerospace Engineer | 17-2011 | Aerospace Engineers |
+| Biomedical Engineer | 17-2031 | Biomedical Engineers |
+| Chemical Engineer | 17-2041 | Chemical Engineers |
+| Civil Engineer | 17-2051 | Civil Engineers |
+| Electrical Engineer | 17-2071 | Electrical Engineers |
+| Electronics Engineer | 17-2072 | Electronics Engineers, Except Computer |
+| Environmental Engineer | 17-2081 | Environmental Engineers |
+| Industrial Engineer | 17-2112 | Industrial Engineers |
+| Mechanical Engineer | 17-2141 | Mechanical Engineers |
+| Nuclear Engineer | 17-2161 | Nuclear Engineers |
+| Petroleum Engineer | 17-2171 | Petroleum Engineers |
+| Engineers, All Other (catch-all) | 17-2199 | Engineers, All Other |
+
+When mapping is ambiguous, query multiple SOC codes and present the range. PM mapping is context-dependent: do NOT default to 11-3021 for non-IT programs.
 
 ### Step 2: Pull BLS Wage Data
 
 **Use the BLS OEWS API skill.** For each labor category, query datatypes 04 (annual mean), 11-15 (10th through 90th percentiles) at the performance location.
 
-Use metro-level prefix (OEUM) when available. Fall back to state (OEUS), then national (OEUN). Present the full wage distribution. Recommend the median (50th percentile) as default basis.
+**BLS series ID component breakdown (25 chars total):**
+```
+prefix(4) + area(7) + industry(6) + SOC(6) + datatype(2) = 25
+OEU  M  +  0047900 +  000000  +  151212 +  13  = OEUM004790000000015121213
+```
+- Prefix OEUM = metro; OEUS = state; OEUN = national
+- Area must be 7 chars (pad with leading zeros)
+- SOC must be exactly 6 chars (no trailing zeros: 151212 not 15121200)
+- Industry 000000 for cross-industry
+
+Use metro-level prefix (OEUM) when available. Fall back to state (OEUS), then national (OEUN). Present the full wage distribution.
+
+**Seniority modeling via percentiles:** When an LCAT is explicitly Junior / Mid / Senior, map to wage percentiles rather than pulling three separate SOCs:
+- Junior → P25 (datatype 12)
+- Mid → P50 median (datatype 13)
+- Senior → P75 (datatype 14)
+
+Pull all 5 percentiles (P10/P25/P50/P75/P90) for any multi-level LCAT. Cite which percentile was used per LCAT in methodology.
+
+**Silent-wrong-answer traps:**
+- **MSA renumbering (2024 OMB Bulletin 23-01).** If a metro query returns NO_DATA across EVERY SOC (not just one), the metro was renumbered, not suppressed. Cleveland moved from 17460 to 17410. Dayton may also have moved. Verify against the current BLS MSA list: `https://www.bls.gov/oes/current/oessrci.htm`. Do NOT fall back to state assuming occupation suppression until you've checked the code.
+- **Wrong trailing zeros.** 151212 is the 6-char SOC. 15121200 is a Standard SOC 8-digit format that will fail the 25-char series ID assertion AFTER several queries have already constructed.
 
 If BLS returns "-" with footnote code 5, the wage exceeds the $239,200 cap. Use the cap as a lower bound and flag in the narrative.
 
@@ -195,6 +263,8 @@ aged_annual_wage = annual_median * aging_factor
 ```
 
 Example: if the contract start is 29 months after the BLS data vintage, at 2.5% escalation the aging_factor = 1.025^(29/12) = ~1.061. A $100,000 BLS median becomes $106,100 before burden multiplier.
+
+**Aging factor must be a cell-referenced formula in the workbook, NOT hardcoded.** Use the assumption block rows to hold BLS_vintage, contract_start, months_gap, and aging_factor. If the user changes the contract start assumption, the whole sheet must recompute correctly. See Step 8 assumption block layout.
 
 Use the aged wage as the basis for all subsequent calculations. Document the aging adjustment in the Methodology sheet: "BLS OEWS wages (data vintage: [BLS_vintage]) aged forward [X] months to [contract start] at [escalation rate]%/yr to account for data lag."
 
@@ -217,7 +287,18 @@ Note: 2,080 converts annual to hourly. Productive hours (1,880) are used separat
 
 ### Step 4: Cross-Reference Against CALC+
 
-**Use the GSA CALC+ Ceiling Rates API skill.** For each labor category, search with `page_size=0` to get aggregations.
+**Use the GSA CALC+ Ceiling Rates API skill.**
+
+**CRITICAL: Use the correct query signature or you will get silent wrong answers.**
+
+**Endpoint:** `https://calc.gsa.gov/api/v3/api/ceilingrates/`
+**Parameter:** `keyword=` (NOT `q=`; `q=` returns the full 265K-record corpus silently)
+**Fetch aggregations:** `page_size=0`
+
+Example:
+```
+GET https://calc.gsa.gov/api/v3/api/ceilingrates/?keyword=Software+Developer&page_size=0
+```
 
 **CRITICAL JSON paths for CALC+ statistics:**
 ```python
@@ -231,9 +312,25 @@ p25      = aggs["histogram_percentiles"]["values"]["25.0"]
 p75      = aggs["histogram_percentiles"]["values"]["75.0"]
 ```
 
-**WARNING:** Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
+**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
 
-Compare BLS burdened rate (mid scenario) to CALC+ median. Flag divergence >25%. Divergence formula: `((bls_burdened - calc_median) / calc_median) * 100`. Divergence is a data point requiring explanation, not an error.
+**Dual-pool analysis for senior LCATs:** When title-match alone returns N<10, add a second query with experience-anchored keyword:
+- Pool A (title-match): `keyword=Senior+Software+Engineer`
+- Pool B (experience-match): `keyword=Software+Engineer+10+years`
+
+Report both counts and medians. Use Pool A primary if N≥10; otherwise blend or cite Pool B as sanity layer.
+
+**Rate validation band for LH/T&M (BLS burdened mid vs CALC+ median):**
+
+LH/T&M burdened rates are a DIRECT comparison to CALC+ ceiling rates (both represent total billable hourly labor). Tighter tolerance than FFP or CR.
+
+| Divergence | Interpretation | Action |
+|------------|---------------|--------|
+| 0 to ±5% | Expected range | Accept without explanation |
+| ±5 to ±15% | Cite range | Document in narrative, show distribution |
+| > ±15% | Needs justification | Flag in Status column |
+
+Divergence formula: `((bls_burdened - calc_median) / calc_median) * 100`. Divergence is a data point requiring explanation, not an error.
 
 ### Step 5: Pull Per Diem Rates (If Travel Required)
 
@@ -241,7 +338,9 @@ Compare BLS burdened rate (mid scenario) to CALC+ median. Flag divergence >25%. 
 
 **City Pair airfare (optional):** When origin and destination are known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
-**Per-trip cost calculation:**
+**Per-trip cost by trip length:**
+
+**Standard multi-night trip (2+ nights):**
 ```
 lodging_per_trip = nightly_rate * nights
 travel_days = nights + 1
@@ -249,12 +348,29 @@ full_day_mie = mie_rate * max(0, travel_days - 2)
 partial_day_mie = mie_rate * 0.75 * 2    # first and last day at 75%
 mie_per_trip = full_day_mie + partial_day_mie
 trip_total = lodging_per_trip + mie_per_trip
+```
+
+**1-night trip:**
+```
+lodging_per_trip = nightly_rate * 1
+mie_per_trip = mie_rate * 0.75 * 2   # both days partial
+trip_total = lodging_per_trip + mie_per_trip
+```
+
+**0-night day trip (same-day return):**
+```
+lodging_per_trip = 0                 # no overnight stay
+mie_per_trip = mie_rate * 0.75       # single partial day only
+trip_total = mie_per_trip
+```
+
+```
 annual_travel = trip_total * trips_per_year * travelers
 ```
 
-Edge case for 1-night trips: both days are partial, so `mie_per_trip = mie_rate * 0.75 * 2`.
-
 Use max monthly lodging rate as conservative ceiling if specific months not provided.
+
+**No travel case:** If user confirms zero travel, do NOT build Sheet 4 with placeholder zeros that break SUM formulas. Use a minimal sheet with text "Travel Not Applicable" and no cell references. Sheet 1 Travel row = 0 literal.
 
 ### Step 5B: Materials Estimation (T&M Only)
 
@@ -273,7 +389,7 @@ T&M contracts reimburse materials at cost per FAR 16.601(b). Skip this step for 
 
 **If user provides specifics:** Create Materials Detail rows with annual cost, apply escalation across option years (same rate as labor).
 
-**If user says materials exist but no specifics:** Include placeholder rows with "TBD" for each common category. Note in methodology that materials must be added before IGCE is complete.
+**If user says materials exist but no specifics:** Include placeholder rows with numeric 0 (NOT text "TBD") for each common category. Note in methodology that materials must be added before IGCE is complete. Text "TBD" in numeric cells breaks SUM formulas.
 
 **CRITICAL: Materials are NOT affected by the burden multiplier.** They are reimbursed at cost. Burden only applies to labor. Keep materials and labor cost streams separate in all formulas.
 
@@ -287,11 +403,11 @@ Materials Subtotal       |     |         | $45,000    | $46,125    | $47,278    
 
 ### Step 6: Handle Multi-Location Weighting
 
-**Option A (default, conservative):** Use highest median across locations per category.
-**Option B (weighted):** `weighted_wage = (wage_A * pct_A) + (wage_B * pct_B)` if user provides split.
-**Option C (separate lines):** Dedicated staff per location get separate rows.
+**Option A (default blend):** Use highest median across locations per category. Use when user does not specify per-location headcount.
 
-Ask user which approach if multiple locations mentioned. Default to Option A.
+**Option B (weighted):** `weighted_wage = (wage_A * pct_A) + (wage_B * pct_B)` if user provides split.
+
+**Option C (separate lines, DEFAULT when headcount per location is explicit):** Dedicated staff per location get separate rows. Do NOT prompt for Option A/B/C when user gave headcount like "4 FTE Fort Meade, 3 FTE Colorado Springs": go straight to Option C.
 
 ### Step 7: Calculate Annual Costs, Prorate, and Apply Escalation
 
@@ -325,65 +441,106 @@ Travel and materials are identical across all three scenarios (per diem is publi
 
 Generate a multi-sheet .xlsx workbook using openpyxl. Use Excel formulas for all calculations. Run the recalc script (`python /mnt/skills/public/xlsx/scripts/recalc.py <file>`) before presenting.
 
-**Workbook structure (6 sheets for LH, 7 for T&M):**
+**Workbook structure (6 sheets for LH, 7 for T&M; subtract 1 if no travel):**
 
-**Sheet 1: IGCE Summary.** Labor categories as rows, periods as columns. Qty, Rate/Hr, annual cost per period. Travel rows below labor. For T&M: Materials rows below travel. Placeholder rows for Airfare, Ground Transportation, ODCs with "TBD." Grand total with SUM formulas.
+**Sheet 1: IGCE Summary.** Labor categories as rows, periods as columns. Qty, Rate/Hr, annual cost per period. Travel rows below labor. For T&M: Materials rows below travel. Placeholder rows for Airfare, Ground Transportation, ODCs as numeric 0 (NOT text "TBD") to prevent #VALUE! errors in SUM formulas. Grand total with SUM formulas.
 
-**Assumption cell layout (Sheet 1, rows 1-7):**
+**Assumption cell layout (Sheet 1, rows 1-11):**
 ```
-A1: "IGCE Assumptions"          (bold, merged A1:B1)
-A2: "Burden Multiplier (Low)"   B2: 1.8    (blue font)
-A3: "Burden Multiplier (Mid)"   B3: 2.0    (blue font)
-A4: "Burden Multiplier (High)"  B4: 2.2    (blue font)
-A5: "Escalation Rate"           B5: 0.025  (blue font, percentage)
-A6: "Productive Hours/Year"     B6: 1880   (blue font)
-A7: "Base Year Months"          B7: 12     (blue font; <12 for partial starts)
-A8: (blank row separator)
-A9: header row for data table
+A1: "IGCE Assumptions"                         (bold, merged A1:B1)
+A2: "Burden Multiplier (Low)"                  B2: 1.8     (blue)
+A3: "Burden Multiplier (Mid)"                  B3: 2.0     (blue)
+A4: "Burden Multiplier (High)"                 B4: 2.2     (blue)
+A5: "Escalation Rate"                          B5: 0.025   (blue, pct)
+A6: "Productive Hours/Year"                    B6: 1880    (blue)
+A7: "Base Year Months"                         B7: 12      (blue; <12 for partial)
+A8: "BLS Vintage"                              B8: "May 2024"  (blue)
+A9: "Contract Start"                           B9: 2026-10-01  (blue, date)
+A10: "Months Gap"                              B10: =DATEDIF(B8,B9,"m")  (formula)
+A11: "Aging Factor"                            B11: =(1+B5)^(B10/12)      (formula)
+A12: (blank row separator)
+A13: header row for data table
 ```
 
-All labor formulas reference $B$3 (mid burden). Sheet 2 references $B$2, $B$3, $B$4 for scenarios. Base year formulas reference $B$7 for proration.
+All labor formulas reference $B$3 (mid burden). Sheet 2 references $B$2, $B$3, $B$4 for scenarios. Base year formulas reference $B$7 for proration. All wages reference `$B$11` aging factor.
 
-**Sheet 2: Scenario Analysis.** Three side-by-side tables (low/mid/high burden). Burden multiplier cells in blue font. Travel and materials identical across scenarios. Summary row: "Range: $X (low) to $Y (high), Mid estimate: $Z."
+**Sheet 2: Scenario Analysis.** Three side-by-side tables (low/mid/high burden). Burden multiplier cells in blue font. Blocks are 12 rows each per LCAT (10 content + 2 separator).
 
-**Sheet 3: Rate Validation.** BLS burdened rate (mid), CALC+ 25th/50th/75th percentiles, min/max range, divergence percentage (formula), Status column.
+**Block layout formula:** `row(N) = 1 + (N-1) * 12` where N is the LCAT index. Within each block:
+- BLS Base Wage (aged) at offset +1
+- Hourly base (annual / 2080) at offset +2
+- Burdened low at offset +3 (hourly × $B$2)
+- Burdened mid at offset +4 (hourly × $B$3)
+- Burdened high at offset +5 (hourly × $B$4)
+- Annual cost low/mid/high at offsets +7/+8/+9
 
-**Sheet 4: Travel Detail.** Formula-driven per destination block:
+Travel and materials identical across scenarios. Summary row: "Range: $X (low) to $Y (high), Mid estimate: $Z."
+
+**Annotation text gotcha:** Annotation cells (column C or D methodology notes) cannot START with `= + - @` or Excel tries to parse as a formula. Prefix with apostrophe (`'=2,080 hours/year`) or lead with a non-operator character (`"Note: 2,080 hours/year"`). Applies anywhere a cell value starts with those four characters.
+
+**Sheet 3: Rate Validation.** BLS burdened rate (mid), CALC+ 25th/50th/75th percentiles, min/max range, divergence percentage (formula), Status column calibrated to LH/T&M bands.
+```
+Row 1: "Rate Validation (LH/T&M)"
+Row 3: Headers: Category | BLS Burdened (mid) | CALC+ 25th | CALC+ 50th | CALC+ 75th | CALC+ Count | Divergence vs Median | Status
+Row 4+: one row per category
+  Divergence = (BLS_burdened - CALC_50th) / CALC_50th
+  Status =
+    IF(ABS(Divergence) <= 0.05, "Expected range",
+    IF(ABS(Divergence) <= 0.15, "Cite range",
+    "Needs justification"))
+```
+
+Dual-pool columns when title-match N<10: add "Pool A (Title)" and "Pool B (Experience)" median columns, cite N for each.
+
+**Sheet 4: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only):
 ```
 Row 1: "Travel Cost Detail: [Destination]"  (bold header)
-Row 3: A="Fiscal Year"           B=<current federal FY>          (blue font)
-Row 4: A="Nightly Lodging Rate"  B=[max monthly]                 (blue font)
-Row 5: A="M&IE Daily Rate"       B=[rate]                        (blue font)
+Row 3: A="Fiscal Year"           B=<current federal FY>          (blue)
+Row 4: A="Nightly Lodging Rate"  B=[max monthly]                 (blue)
+Row 5: A="M&IE Daily Rate"       B=[rate]                        (blue)
 Row 6: A="First/Last Day M&IE"   B==B5*0.75                      (formula)
-Row 7: A="Nights per Trip"       B=[nights]                      (blue font)
-Row 8: A="Travel Days"           B==B7+1                         (formula)
-Row 9: A="Lodging per Trip"      B==B4*B7                        (formula)
-Row 10: A="M&IE per Trip"        B==B5*MAX(0,B8-2)+B6*2          (formula)
+Row 7: A="Nights per Trip"       B=[nights, 0 for day trip]       (blue)
+Row 8: A="Travel Days"           B==IF(B7=0,1,B7+1)              (formula)
+Row 9: A="Lodging per Trip"      B==B4*B7                        (formula, 0 when nights=0)
+Row 10: A="M&IE per Trip"        B==IF(B7=0,B6,B5*MAX(0,B8-2)+B6*2)  (formula)
 Row 11: A="Trip Total"           B==B9+B10                       (formula)
-Row 12: A="Trips per Year"       B=[trips]                       (blue font)
-Row 13: A="Travelers"            B=[count]                       (blue font)
+Row 12: A="Trips per Year"       B=[trips]                       (blue)
+Row 13: A="Travelers"            B=[count]                       (blue)
 Row 14: A="Annual Travel Cost"   B==B11*B12*B13                  (formula, bold)
 ```
 
-**Sheet 5: Methodology.** Narrative for the contract file. Include: data sources with vintages (BLS OEWS [data vintage], CALC+ queried [date], Per Diem [current FY]), burden multiplier rationale plus scenario range, escalation basis, productive hours assumption, partial-year proration if applied, travel calculation methodology (first/last day at 75%), what is NOT included, CALC+ cross-reference and divergence explanations, NAICS/PSC if provided, contract type (LH or T&M), FAR 15.402 and FAR 15.404-1(b) references. For T&M: note materials reimbursed at cost per FAR 16.601(b)(2), government right to require competition for materials over SAT.
+**Sheet 5: Methodology.** Narrative for the contract file. Include: data sources with vintages (BLS OEWS [data vintage], CALC+ queried [date], Per Diem [current FY]), BLS aging adjustment (months_gap, aging_factor), shift coverage FTE math if 24x7, burden multiplier rationale plus scenario range, escalation basis, productive hours assumption, partial-year proration if applied, travel calculation methodology (including 0-night day trips if applicable), what is NOT included, CALC+ cross-reference with endpoint/keyword cited, divergence explanations, NAICS/PSC if provided, contract type (LH or T&M), FAR 15.402 and FAR 15.404-1(b) references. For T&M: note materials reimbursed at cost per FAR 16.601(b)(2), government right to require competition for materials over SAT.
 
-**Sheet 6: Raw Data.** All API query parameters and responses: BLS series IDs, CALC+ keywords and record counts, per diem query details, City Pair fares if retrieved.
+**Sheet 6: Raw Data.** All API query parameters and responses: BLS series IDs, CALC+ keyword + endpoint + record counts, per diem query details, City Pair fares if retrieved.
 
-**Sheet 7: Materials Detail (T&M only).** One row per materials category with annual cost, escalation across periods, and subtotals. Blue font on all cost inputs. Note that materials are at cost, no burden applied.
+**Sheet 7: Materials Detail (T&M only).** One row per materials category with annual cost, escalation across periods, and subtotals. Blue font on all cost inputs. Note that materials are at cost, no burden applied. Use numeric 0 for unknown amounts (not text "TBD").
 
 **Formatting standards:**
 - Blue font (RGB 0,0,255) for all user-adjustable inputs and assumptions
 - Black font for all formula cells
-- Currency: $#,##0 with negatives in parentheses
-- Percentage: 0.0%
+- Currency: `$#,##0` with negatives in parentheses
+- Percentage: `0.0%`
 - Bold headers with light gray fill
-- Freeze panes below assumptions block on Sheet 1 (below row 8)
+- Freeze panes below assumption block on Sheet 1 (below row 12)
 - Auto-size column widths
 - Burden multiplier display format: `0.0"x"`
 
 When base year is partial, prorate: `=burdened_rate*$B$6*($B$7/12)*headcount`. Travel and materials prorate the same way. Full option years ignore $B$7.
 
 Never output as .md or HTML unless explicitly requested.
+
+### Step 9: Present the File
+
+After writing the workbook, copy to the outputs directory AND call `present_files` so the user sees a download link in the UI.
+
+```python
+import shutil
+shutil.copy(workbook_path, "/mnt/user-data/outputs/IGCE_LH_<project>.xlsx")
+# Then invoke the file-presentation tool
+present_files(["/mnt/user-data/outputs/IGCE_LH_<project>.xlsx"])
+```
+
+Do NOT skip this step. A workbook that exists in the sandbox but is not presented looks like a silent failure to the user.
 
 ## Edge Cases
 
@@ -401,12 +558,20 @@ Never output as .md or HTML unless explicitly requested.
 
 **User provides their own rates:** Use Workflow B (Rate Validation Only).
 
+**Silent-wrong-answer traps:**
+- `q=` parameter on CALC+ returns the full 265K-record corpus silently. Always use `keyword=` or `search=`.
+- `wage_stats` read from top level returns None. Always read from `aggregations.wage_stats`.
+- MSA code renumbering (Cleveland 17460 → 17410) returns NO_DATA silently. Verify code if all datatypes return empty.
+- BLS SOC with trailing zeros (151212 vs 15121200) fails the 25-char assertion AFTER you've already constructed several queries. Use exactly 6-char SOC.
+- Annotation text starting with `= + - @` triggers Excel formula parse. Escape with apostrophe or lead with text.
+- ODC / placeholder cells set to text "TBD" break SUM formulas. Use numeric 0 literal.
+
 ## What This Skill Does NOT Cover
 
 Include as placeholder rows or methodology notes:
-- **Airfare:** Use City Pair YCA fares when origin/destination known; otherwise TBD
+- **Airfare:** Use City Pair YCA fares when origin/destination known; otherwise numeric 0 placeholder
 - **Ground transportation:** Rental cars, mileage ($0.70/mile), taxi, rideshare
-- **ODCs (LH):** Equipment, licenses, materials for LH contracts (user must provide)
+- **ODCs (LH):** Equipment, licenses, materials for LH contracts (user must provide; placeholders as numeric 0)
 - **Subcontractor costs:** Requires separate estimate or vendor input
 - **Fee/profit analysis:** This skill estimates costs, not negotiation targets
 - **OCONUS travel:** Per diem covers CONUS only; State Dept rates for OCONUS
@@ -417,28 +582,40 @@ Include as placeholder rows or methodology notes:
 ## Quick Start Examples
 
 **Simple LH:** "Build an IGCE for a Systems Analyst in DC, base plus 2 option years"
-Claude will: map to SOC 15-1211, pull DC BLS wages, apply 1.8x/2.0x/2.2x burden, validate against CALC+, apply 2.5% escalation, produce 6-sheet xlsx.
+Claude will: map to SOC 15-1211, pull DC BLS wages with percentiles, age to contract start via cell-referenced formula, apply 1.8x/2.0x/2.2x burden, validate against CALC+ at `keyword=` endpoint, apply 2.5% escalation, produce 6-sheet xlsx and present.
 
 **T&M:** "T&M IGCE for a 4-person dev team in DC, they'll need AWS hosting and JIRA licenses, base plus 3 OYs"
 Claude will: run full labor sequence plus Step 5B for materials, collect specifics, produce 7-sheet xlsx with materials separate from burden.
 
 **SOW-driven:** "Here's my SOW, build me an IGCE" [user pastes or uploads SOW]
-Claude will: run Step 0 decomposition, validate, determine LH vs. T&M based on materials need, then run appropriate workflow.
+Claude will: run Step 0 decomposition, domain triage, validate, determine LH vs. T&M based on materials need, then run appropriate workflow.
 
 **With travel:** "IGCE for a 5-person IT team in DC with monthly travel to Seattle, base plus 4 OYs"
-Claude will: ask for labor breakdown, run Steps 1-8 including City Pair lookup for DCA-SAT.
+Claude will: ask for labor breakdown, run Steps 1-9 including City Pair lookup for DCA-SEA.
 
 **Rate validation:** "Vendor proposes $165/hr for a Software Dev in DC. Reasonable?"
-Claude will: Workflow B. Pull CALC+ distribution, position $165, optionally BLS context, produce validation summary.
+Claude will: Workflow B. Pull CALC+ distribution via `keyword=`, position $165 against ±5 / ±15 / outside bands, optionally BLS context, produce validation summary.
 
-**Multi-location:** "Price a 10-person help desk split between Baltimore and Philadelphia, quarterly travel to DC"
-Claude will: ask which approach (highest/weighted/separate), pull BLS for both metros, produce combined IGCE.
+**Multi-location (explicit headcount):** "Price a 10-person help desk split 6 Baltimore / 4 Philadelphia, quarterly travel to DC"
+Claude will: use Option C (separate lines per location) without prompting, pull BLS for both metros, produce combined IGCE.
 
 **Partial year:** "IGCE for a contract starting April 1, base year is 6 months, then 4 full OYs"
 Claude will: prorate base to 6 months (940 hrs), full hours for OY1-4, note proration in methodology.
 
+**24x7 coverage:** "SOC analyst coverage 24x7x365, Cleveland, base plus 2 OYs"
+Claude will: compute 4.2 FTE single-seat per Step 0.5, pull BLS Cleveland (0017410 post-2023 OMB renumbering), build workbook.
+
+**Day trip travel:** "Quarterly day trips DCA to Pentagon, 5 travelers"
+Claude will: Step 5 0-night case (no lodging, single partial M&IE), Sheet 4 formulas handle nights=0 correctly.
+
 **Cleared environment:** "Use 2.4x burden for a cleared IT support contract in DC"
 Claude will: set mid=2.4x, low=2.2x, high=2.6x, note cleared justification in methodology.
+
+**Physical engineering (DOE):** "LH IGCE for 3 mechanical engineers + 1 PM at Oak Ridge, base + 2 OYs"
+Claude will: domain triage (DOE → 17-2xxx); map to 17-2141 Mechanical + 11-9041 Engineering Manager (NOT 11-3021 IT); pull Oak Ridge 28940; apply burden; validate with dual-pool CALC+; produce workbook.
+
+**No travel:** "LH IGCE for on-site-only help desk in DC, base + 2 OYs"
+Claude will: build labor workbook; Sheet 4 shows "Travel Not Applicable" text only; Travel row in Sheet 1 is literal 0; no SUM breakage.
 
 
 ---

@@ -42,11 +42,11 @@ If a key is missing, prompt the user to register: BLS at https://data.bls.gov/re
 ## Workflow Selection
 
 ### Workflow A: Full CR IGCE Build (Default)
-User needs a complete cost-reimbursement estimate. Execute Steps 1 through 8.
+User needs a complete cost-reimbursement estimate. Execute Steps 1 through 9.
 Triggers: "cost reimbursement IGCE," "CPFF estimate," "CPAF estimate," "CPIF estimate," "cost-plus estimate," "BAA cost estimate."
 
 ### Workflow A+: SOW/PWS-Driven CR Build
-User provides a requirement document instead of structured labor inputs. Execute Step 0 first, validate, then Steps 1-8.
+User provides a requirement document instead of structured labor inputs. Execute Step 0 first, validate, then Steps 1-9.
 Triggers: "build a CR IGCE from this SOW," "price this BAA requirement," or when user provides requirement text and specifies cost-reimbursement.
 
 Detection: If the user mentions a BAA and does not specify contract type, suggest CR as the most likely fit and confirm before proceeding.
@@ -76,6 +76,7 @@ Ask for everything in a single pass. Provide defaults where noted.
 | Hours per year | Productive hours per person (default: 1,880) | 1,880 |
 | Period of performance | Base year + option years | Base + 2 OYs |
 | Fee type | CPFF, CPAF, or CPIF | CPFF |
+| Contract start date | For wage aging | 2026-10-01 |
 
 ### Optional Inputs (Defaults Applied If Not Provided)
 
@@ -92,9 +93,10 @@ Ask for everything in a single pass. Provide defaults where noted.
 | Min fee (CPIF) | 3% | Floor on fee |
 | Max fee (CPIF) | 12% | Ceiling on fee |
 | Escalation rate | 2.5%/yr | Applied to labor and travel |
+| Shift coverage | Single shift | Specify 24x7 if needed; Step 0.5 computes FTE |
 | Travel destinations | None | City/state per destination |
 | Travel frequency | None | Trips/year per destination |
-| Travel duration | None | Nights per trip |
+| Travel duration | None | Nights per trip (0 = day trip) |
 | Number of travelers | All staff | Travelers per trip |
 | Travel months | Max monthly rate | Specific months if known |
 | FY for per diem | Current federal FY | Compute at build time (Oct-Sep cycle) |
@@ -129,6 +131,7 @@ Provide this when the user is unsure:
 |----------|-------|--------|
 | Standard work year | 2,080 hours | 40 hrs x 52 weeks; converts annual wages to hourly |
 | Default productive hours | 1,880 hours/year | 2,080 minus holidays and avg leave |
+| Annual coverage hours (24x7) | 8,760 hours | 24 x 365; divide by 2,080 × availability for FTE |
 | BLS wage cap (annual) | $239,200 | May 2024 OEWS reporting ceiling |
 | BLS wage cap (hourly) | $115.00 | May 2024 OEWS reporting ceiling |
 | OEWS data year | 2024 | May 2024 estimates |
@@ -147,24 +150,51 @@ Converts an unstructured SOW/PWS into structured pricing inputs.
 
 2. **Task decomposition.** Parse into discrete task areas with description, skill discipline, complexity, and recurring vs. finite classification.
 
-3. **Labor category mapping.** Map tasks to SOC codes using Step 1 heuristics. When a task spans disciplines, map to multiple categories.
+3. **Domain triage.** Identify agency domain (DoD / IC / DOE / civilian IT / research / medical) BEFORE SOC mapping. Domain signals which SOC block applies: DOE → 17-2xxx physical engineering; IC/DoD cyber → 15-1212; civilian IT → 15-125x software/systems; research → 19-1xxx / 15-2xxx; medical → 29-xxxx.
 
-4. **Staffing estimation.** Estimate FTEs per category based on scope indicators. Present as ranges when ambiguous.
+4. **Labor category mapping.** Map tasks to SOC codes using Step 1 heuristics with domain triage result. When a task spans disciplines, map to multiple categories.
 
-5. **Present decomposition table** for user validation.
+5. **Staffing estimation.** Estimate FTEs per category based on scope indicators. If 24x7 coverage is required, invoke Step 0.5. Present as ranges when ambiguous.
 
-6. **User validation gate.** Confirm labor mix. Also confirm fee type: "Cost-reimbursement contracts require a fee structure. Based on [rationale], I recommend CPFF. Should I proceed with CPFF, or do you need CPAF or CPIF?"
+6. **Present decomposition table** for user validation.
+
+7. **User validation gate.** Confirm labor mix. Also confirm fee type: "Cost-reimbursement contracts require a fee structure. Based on [rationale], I recommend CPFF. Should I proceed with CPFF, or do you need CPAF or CPIF?"
+
+### Step 0.5: Shift Coverage Staffing (If 24x7 or Multi-Shift)
+
+If the requirement specifies 24x7 coverage, around-the-clock SOC, NOSC, help desk, or continuous monitoring, headcount must be grossed up from productive hours to coverage hours.
+
+**Single-seat 24x7 (one analyst always on duty):**
+```
+annual_coverage_hours = 24 * 365 = 8,760
+productive_hours_per_fte = 2,080
+availability_factor = 0.50   # leave, training, turnover, overlap
+single_seat_fte = 8,760 / (2,080 * availability_factor) = ~8.4 FTE
+```
+Simplification: use 4.2 FTE for single-seat 24x7 as the common industry convention (accounts for 50% availability + leave + overlap).
+
+**Double-seat 24x7 (two analysts always on duty):** 8.4 FTE.
+
+**12x5 coverage (business hours, weekdays only):** 60 hrs/wk × 52 = 3,120 annual hrs. 3,120 / 1,880 = 1.66 FTE single-seat, ~2 FTE with overlap.
+
+**16x7 coverage (extended hours, every day):** 16 × 365 = 5,840 annual hrs. 5,840 / 1,880 × availability = ~3.1 FTE single-seat.
+
+Document the FTE math in Sheet 6 Methodology. Do NOT quietly use 3 FTE for 24x7 coverage: that understaffs by 28%.
 
 ### Step 1: Map Labor Categories to SOC Codes
 
-Map user job titles to SOC codes. Common mappings:
+Map user job titles to SOC codes. Apply domain triage from Step 0 first.
+
+**IT and Professional Services (most common):**
 
 | Common Title | SOC Code | BLS Title |
 |-------------|----------|-----------|
-| Program Manager | 11-1021 | General and Operations Managers |
+| Program Manager (general ops) | 11-1021 | General and Operations Managers |
+| Program Manager (IT) | 11-3021 | Computer and Information Systems Managers |
+| Program Manager (engineering) | 11-9041 | Architectural and Engineering Managers |
 | Project Manager | 13-1082 | Project Management Specialists |
 | Management Analyst | 13-1111 | Management Analysts |
-| Systems Engineer / Analyst | 15-1211 | Computer Systems Analysts |
+| Systems Engineer / Analyst (IT) | 15-1211 | Computer Systems Analysts |
 | Software Developer | 15-1252 | Software Developers |
 | Cybersecurity / InfoSec | 15-1212 | Information Security Analysts |
 | Network Architect | 15-1241 | Computer Network Architects |
@@ -174,17 +204,65 @@ Map user job titles to SOC codes. Common mappings:
 | Help Desk | 15-1232 | Computer User Support Specialists |
 | Data Scientist | 15-2051 | Data Scientists |
 | Technical Writer | 27-3042 | Technical Writers |
-| Research Scientist | 19-1099 | Life Scientists, All Other (or domain-specific) |
-| Statistician | 15-2041 | Statisticians |
-| Epidemiologist | 19-1041 | Epidemiologists |
 
-When mapping is ambiguous, query multiple SOC codes and present the range.
+**Physical / DOE / Defense Engineering (use these for hardware, labs, weapons systems, DOE M&O, physical infrastructure):**
+
+| Common Title | SOC Code | BLS Title |
+|-------------|----------|-----------|
+| Aerospace Engineer | 17-2011 | Aerospace Engineers |
+| Biomedical Engineer | 17-2031 | Biomedical Engineers |
+| Chemical Engineer | 17-2041 | Chemical Engineers |
+| Civil Engineer | 17-2051 | Civil Engineers |
+| Electrical Engineer | 17-2071 | Electrical Engineers |
+| Electronics Engineer | 17-2072 | Electronics Engineers, Except Computer |
+| Environmental Engineer | 17-2081 | Environmental Engineers |
+| Industrial Engineer | 17-2112 | Industrial Engineers |
+| Mechanical Engineer | 17-2141 | Mechanical Engineers |
+| Nuclear Engineer | 17-2161 | Nuclear Engineers |
+| Petroleum Engineer | 17-2171 | Petroleum Engineers |
+| Engineers, All Other (catch-all) | 17-2199 | Engineers, All Other |
+
+**Research / Science (BAAs, R&D contracts):**
+
+| Common Title | SOC Code | BLS Title |
+|-------------|----------|-----------|
+| Research Scientist (life sci) | 19-1099 | Life Scientists, All Other |
+| Biochemist / Biophysicist | 19-1021 | Biochemists and Biophysicists |
+| Microbiologist | 19-1022 | Microbiologists |
+| Epidemiologist | 19-1041 | Epidemiologists |
+| Physicist | 19-2012 | Physicists |
+| Chemist | 19-2031 | Chemists |
+| Statistician | 15-2041 | Statisticians |
+| Mathematician | 15-2021 | Mathematicians |
+
+When mapping is ambiguous, query multiple SOC codes and present the range. PM mapping is context-dependent: do NOT default to 11-3021 for non-IT programs.
 
 ### Step 2: Pull BLS Wage Data
 
 **Use the BLS OEWS API skill.** For each labor category, query datatypes 04 (annual mean), 11-15 (10th through 90th percentiles) at the performance location.
 
-Use metro-level prefix (OEUM) when available. Fall back to state (OEUS), then national (OEUN). Present the full wage distribution. Recommend the median as default basis.
+**BLS series ID component breakdown (25 chars total):**
+```
+prefix(4) + area(7) + industry(6) + SOC(6) + datatype(2) = 25
+OEU  M  +  0047900 +  000000  +  151212 +  13  = OEUM004790000000015121213
+```
+- Prefix OEUM = metro; OEUS = state; OEUN = national
+- Area must be 7 chars (pad with leading zeros)
+- SOC must be exactly 6 chars (no trailing zeros: 151212 not 15121200)
+- Industry 000000 for cross-industry
+
+Use metro-level prefix (OEUM) when available. Fall back to state (OEUS), then national (OEUN). Present the full wage distribution.
+
+**Seniority modeling via percentiles:** When an LCAT is explicitly Junior / Mid / Senior, map to wage percentiles rather than pulling three separate SOCs:
+- Junior → P25 (datatype 12)
+- Mid → P50 median (datatype 13)
+- Senior → P75 (datatype 14)
+
+Pull all 5 percentiles (P10/P25/P50/P75/P90) for any multi-level LCAT. Cite which percentile was used per LCAT in methodology.
+
+**Silent-wrong-answer traps:**
+- **MSA renumbering (2024 OMB Bulletin 23-01).** If a metro query returns NO_DATA across EVERY SOC (not just one), the metro was renumbered, not suppressed. Cleveland moved from 17460 to 17410. Dayton may also have moved. Verify against the current BLS MSA list: `https://www.bls.gov/oes/current/oessrci.htm`. Do NOT fall back to state assuming occupation suppression until you've checked the code.
+- **Wrong trailing zeros.** 151212 is the 6-char SOC. 15121200 is a Standard SOC 8-digit format that will fail the 25-char series ID assertion AFTER several queries have already constructed.
 
 If BLS returns "-" with footnote code 5, the wage exceeds the $239,200 cap. Use the cap as a lower bound and flag in the narrative.
 
@@ -199,6 +277,8 @@ aged_annual_wage = annual_median * aging_factor
 ```
 
 Example: if the contract start is 29 months after the BLS data vintage, at 2.5% escalation the aging_factor = 1.025^(29/12) = ~1.061. A $100,000 BLS median becomes $106,100 before cost pool buildup.
+
+**Aging factor must be a cell-referenced formula in the workbook, NOT hardcoded.** Use the assumption block rows to hold BLS_vintage, contract_start, months_gap, and aging_factor. If the user changes the contract start assumption, the whole sheet must recompute correctly. See Step 8 assumption block layout.
 
 Use the aged wage as the basis for all subsequent calculations. Document the aging adjustment in the Methodology sheet: "BLS OEWS wages (data vintage: [BLS_vintage]) aged forward [X] months to [contract start] at [escalation rate]%/yr to account for data lag."
 
@@ -257,8 +337,6 @@ fee_at_underrun = target_fee + (target_cost - underrun_cost) * contractor_share_
 fee_at_underrun = min(fee_at_underrun, target_cost * cpif_max_fee)
 ```
 
-**Implied multiplier:** `implied_multiplier = total_estimated_price / direct_labor_rate`. Display for comparison to typical T&M burdens and FFP wrap rates.
-
 **Three-scenario approach:** Vary each cost pool component:
 
 | Component | Low | Mid | High |
@@ -271,7 +349,18 @@ Fee is calculated on each scenario's total cost. For CPIF, this produces a 3x3 m
 
 ### Step 4: Cross-Reference Against CALC+
 
-**Use the GSA CALC+ Ceiling Rates API skill.** For each labor category, search with `page_size=0`.
+**Use the GSA CALC+ Ceiling Rates API skill.**
+
+**CRITICAL: Use the correct query signature or you will get silent wrong answers.**
+
+**Endpoint:** `https://calc.gsa.gov/api/v3/api/ceilingrates/`
+**Parameter:** `keyword=` (NOT `q=`; `q=` returns the full 265K-record corpus silently)
+**Fetch aggregations:** `page_size=0`
+
+Example:
+```
+GET https://calc.gsa.gov/api/v3/api/ceilingrates/?keyword=Research+Scientist&page_size=0
+```
 
 **CRITICAL JSON paths:**
 ```python
@@ -285,9 +374,23 @@ p25      = aggs["histogram_percentiles"]["values"]["25.0"]
 p75      = aggs["histogram_percentiles"]["values"]["75.0"]
 ```
 
-**WARNING:** Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
+**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
 
-Compare mid-scenario burdened rate (cost + fee) to CALC+ median. Flag divergence >25%. CR burdened rates may diverge more from CALC+ than T&M since CALC+ reflects MAS ceiling rates (T&M/LH pricing), not cost-reimbursement structures. Note this context in the validation narrative.
+**Dual-pool analysis for senior LCATs:** When title-match alone returns N<10, add a second query with experience-anchored keyword:
+- Pool A (title-match): `keyword=Senior+Research+Scientist`
+- Pool B (experience-match): `keyword=Research+Scientist+10+years`
+
+Report both counts and medians. Use Pool A primary if N≥10; otherwise blend or cite Pool B as sanity layer.
+
+**Rate validation band for CR (burdened cost + fee vs CALC+ median):**
+
+| Divergence | Interpretation | Action |
+|------------|---------------|--------|
+| 0 to ±10% | Expected range | Accept without explanation |
+| ±10 to ±25% | Cite fee structure or cost pool variance | Document in narrative |
+| > ±25% | Needs explicit justification | Flag in Status column |
+
+CR burdened rates often diverge from CALC+ more than LH/TM because CALC+ reflects MAS ceiling rates (which include contractor profit), while CR has separate cost + fee. A CR cost + fee slightly below CALC+ median is normal. Far above CALC+ median suggests inflated cost pools.
 
 ### Step 5: Pull Per Diem Rates (If Travel Required)
 
@@ -295,7 +398,9 @@ Compare mid-scenario burdened rate (cost + fee) to CALC+ median. Flag divergence
 
 **City Pair airfare (optional):** When origin and destination known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
-**Per-trip cost:**
+**Per-trip cost by trip length:**
+
+**Standard multi-night trip (2+ nights):**
 ```
 lodging_per_trip = nightly_rate * nights
 travel_days = nights + 1
@@ -303,16 +408,35 @@ full_day_mie = mie_rate * max(0, travel_days - 2)
 partial_day_mie = mie_rate * 0.75 * 2
 mie_per_trip = full_day_mie + partial_day_mie
 trip_total = lodging_per_trip + mie_per_trip
+```
+
+**1-night trip:**
+```
+lodging_per_trip = nightly_rate * 1
+mie_per_trip = mie_rate * 0.75 * 2   # both days partial
+trip_total = lodging_per_trip + mie_per_trip
+```
+
+**0-night day trip (same-day return):**
+```
+lodging_per_trip = 0                 # no overnight stay
+mie_per_trip = mie_rate * 0.75       # single partial day only
+trip_total = mie_per_trip
+```
+
+```
 annual_travel = trip_total * trips_per_year * travelers
 ```
 
-Edge case for 1-night trips: both days partial, `mie_per_trip = mie_rate * 0.75 * 2`.
+**No travel case:** If user confirms zero travel, do NOT build Sheet 5 with placeholder zeros that break SUM formulas. Use a minimal sheet with text "Travel Not Applicable" and no cell references. Sheet 1 Travel row = 0 literal.
 
 ### Step 6: Handle Multi-Location Weighting
 
-**Option A (default):** Use highest median across locations per category.
-**Option B (weighted):** `weighted_wage = (wage_A * pct_A) + (wage_B * pct_B)`.
-**Option C (separate lines):** Dedicated staff per location get separate rows.
+**Option A (default blend):** Use highest median across locations per category. Use when user does not specify per-location headcount.
+
+**Option B (weighted):** `weighted_wage = (wage_A * pct_A) + (wage_B * pct_B)`. Use when user provides split percentages.
+
+**Option C (separate lines, DEFAULT when headcount per location is explicit):** Dedicated staff per location get separate rows. Do NOT prompt for Option A/B/C when user gave headcount like "3 FTE at Bethesda, 2 FTE at San Diego": go straight to Option C.
 
 ### Step 7: Calculate Estimated Costs by Period and Apply Escalation
 
@@ -331,7 +455,9 @@ prorated_hours = productive_hours * (months_in_period / 12)
 prorated_travel = annual_travel * (months_in_period / 12)
 ```
 
-**Escalation:** `year_N_cost = base_year_cost * (1 + escalation_rate) ^ N`
+**Escalation across option years:** `year_N_cost = base_year_cost * (1 + escalation_rate) ^ N`
+
+Escalation applies to labor and travel. Fee rate stays constant as a percentage; dollar fee grows with escalated cost.
 
 **Three-scenario math:** Vary cost pool components (fringe/overhead/G&A) at low/mid/high. Fee calculated on each scenario's total cost.
 
@@ -349,86 +475,110 @@ Travel is identical across all scenarios.
 
 Generate a multi-sheet .xlsx workbook using openpyxl. Use Excel formulas for all calculations. Run recalc script (`python /mnt/skills/public/xlsx/scripts/recalc.py <file>`) before presenting.
 
-**Workbook structure (7 sheets):**
+**Workbook structure (7 sheets, or 6 if no travel):**
 
-**Sheet 1: IGCE Summary.** Labor categories as rows, periods as columns. Shows Total Estimated Cost, Fee (labeled by type: "Fixed Fee," "Estimated Award Fee," or "Target Fee"), and Total Estimated Price. Travel rows below labor. Placeholder rows for Airfare, Ground Transportation, ODCs. Grand total with SUM formulas.
+**Sheet 1: IGCE Summary.** Labor categories as rows, periods as columns. Shows Total Estimated Cost, Fee (labeled by type: "Fixed Fee," "Estimated Award Fee," or "Target Fee"), and Total Estimated Price. Travel rows below labor. Placeholder rows for Airfare, Ground Transportation, ODCs as numeric 0 (NOT text "TBD") to prevent #VALUE! errors in SUM formulas. Grand total with SUM formulas.
 
-**Assumption cell layout (Sheet 1, rows 1-10):**
+**Assumption cell layout (Sheet 1, rows 1-13):**
 ```
 A1: "IGCE Assumptions (Cost-Reimbursement)"   (bold, merged A1:B1)
-A2: "Fringe Rate"                              B2: 0.32     (blue font, percentage)
-A3: "Overhead Rate"                            B3: 0.80     (blue font, percentage)
-A4: "G&A Rate"                                 B4: 0.12     (blue font, percentage)
-A5: "Fee Type"                                 B5: "CPFF"   (blue font)
-A6: "Fee Rate"                                 B6: 0.08     (blue font, percentage)
-A7: "Escalation Rate"                          B7: 0.025    (blue font, percentage)
-A8: "Productive Hours/Year"                    B8: 1880     (blue font)
-A9: "Base Year Months"                         B9: 12       (blue font)
-A10: (blank row separator)
-A11: header row for data table
+A2: "Fringe Rate"                              B2: 0.32     (blue, pct)
+A3: "Overhead Rate"                            B3: 0.80     (blue, pct)
+A4: "G&A Rate"                                 B4: 0.12     (blue, pct)
+A5: "Fee Type"                                 B5: "CPFF"   (blue)
+A6: "Fee Rate"                                 B6: 0.08     (blue, pct)
+A7: "Escalation Rate"                          B7: 0.025    (blue, pct)
+A8: "Productive Hours/Year"                    B8: 1880     (blue)
+A9: "Base Year Months"                         B9: 12       (blue; <12 for partial)
+A10: "BLS Vintage"                             B10: "May 2024"  (blue)
+A11: "Contract Start"                          B11: 2026-10-01  (blue, date)
+A12: "Months Gap"                              B12: =DATEDIF(B10,B11,"m")  (formula)
+A13: "Aging Factor"                            B13: =(1+B7)^(B12/12)        (formula)
+A14: (blank row separator)
+A15: header row for data table
 ```
 
-For CPAF: replace A6/B6 with "Base Fee Rate" and add A6a: "Award Fee Pool Rate" B6a: 0.07, A6b: "Assumed Earned %" B6b: 0.85.
-For CPIF: replace A6/B6 with "Target Fee Rate" and add rows for Share Ratio (Over), Share Ratio (Under), Min Fee, Max Fee.
+For CPAF: replace B6 with "Base Fee Rate" and add separate rows for Award Fee Pool Rate (0.07) and Assumed Earned % (0.85).
+For CPIF: replace B6 with "Target Fee Rate" and add rows for Share Ratio (Over), Share Ratio (Under), Min Fee, Max Fee.
 
-**Sheet 2: Cost Buildup.** One block per labor category showing direct labor through G&A, plus a fee analysis block below:
+**Sheet 2: Cost Buildup.** One block per labor category showing BLS base through Total Price. Blocks are 20 rows each (18 content + 2 separator).
+
+**Block layout formula:** `row(N) = 1 + (N-1) * 20` where N is the LCAT index.
+- BLS Base Wage at offset +1
+- Direct Labor Rate at offset +2
+- Total Estimated Cost at offset +12
+- Total Estimated Price at offset +17
+- Implied Multiplier at offset +18 (Total Price / Direct Labor)
 
 ```
-Cost Buildup: [Labor Category]
-Row 2: A="BLS Base Wage (Annual)"     B=[annual median]
+Row 2: A="BLS Base Wage (Annual)"     B=[aged annual median using =BLS*$B$13]
 Row 3: A="Direct Labor Rate (Hourly)" B==B2/2080               (formula)
-Row 5: A="Fringe Rate"                B=0.32                   (blue font)
+Row 5: A="Fringe Rate"                B==$B$2                  (formula, refs assumption)
 Row 6: A="Fringe Amount"              B==B3*B5                  (formula)
 Row 7: A="Labor + Fringe"             B==B3+B6                  (formula)
-Row 8: A="Overhead Rate"              B=0.80                   (blue font)
+Row 8: A="Overhead Rate"              B==$B$3                  (formula, refs assumption)
 Row 9: A="Overhead Amount"            B==B7*B8                  (formula)
 Row 10: A="Subtotal"                  B==B7+B9                  (formula)
-Row 11: A="G&A Rate"                  B=0.12                   (blue font)
+Row 11: A="G&A Rate"                  B==$B$4                  (formula, refs assumption)
 Row 12: A="G&A Amount"                B==B10*B11                (formula)
 Row 13: A="Total Estimated Cost"      B==B10+B12                (formula)
 
 Fee Analysis:
-Row 15: A="Fee Type"                  B="CPFF"                 (blue font)
-Row 16: A="Fee Rate"                  B=0.08                   (blue font)
+Row 15: A="Fee Type"                  B==$B$5                  (formula)
+Row 16: A="Fee Rate"                  B==$B$6                  (formula, refs assumption)
 Row 17: A="Fee Amount"                B==B13*B16                (formula)
 Row 18: A="Total Estimated Price"     B==B13+B17                (formula, bold)
 Row 19: A="Implied Multiplier"        B==B18/B3                 (formula, 0.00"x")
 ```
 
-For CPAF: rows for base fee, award pool, assumed earned %, calculated fee.
-For CPIF: rows for target fee, overrun/underrun scenarios with share ratio, min/max bounds.
+For CPAF: rows 15-19 expand to base fee, award pool, assumed earned %, calculated fee, total price.
+For CPIF: rows 15-21 expand to target fee, overrun/underrun scenarios with share ratio, min/max bounds.
+
+**Annotation text gotcha:** Annotation cells (column C or D methodology notes) cannot START with `= + - @` or Excel tries to parse as a formula. Prefix with apostrophe (`'=2,080 hours/year`) or lead with a non-operator character (`"Note: 2,080 hours/year"`). Applies anywhere a cell value starts with those four characters.
 
 **Sheet 3: Scenario Analysis.** Three cost columns (low/mid/high) with fee calculated on each. Display component rates at top. For CPIF: expand to 3x3 matrix (cost scenarios x fee outcomes). Summary row with range.
 
-**Sheet 4: Rate Validation.** BLS burdened rate (mid) vs. CALC+ 25th/50th/75th, min/max, divergence, Status.
-
-**Sheet 5: Travel Detail.** Formula-driven per destination:
+**Sheet 4: Rate Validation.** BLS burdened cost (mid) + fee vs. CALC+ distribution.
 ```
-Row 3: A="Fiscal Year"           B=<current federal FY>          (blue font)
-Row 4: A="Nightly Lodging Rate"  B=[max monthly]                 (blue font)
-Row 5: A="M&IE Daily Rate"       B=[rate]                        (blue font)
+Row 1: "Rate Validation (CR)"
+Row 3: Headers: Category | BLS Cost+Fee (mid) | CALC+ 25th | CALC+ 50th | CALC+ 75th | CALC+ Count | Divergence vs Median | Status
+Row 4+: one row per category
+  Divergence = (Cost_Fee - CALC_50th) / CALC_50th
+  Status =
+    IF(ABS(Divergence) <= 0.10, "Expected range",
+    IF(ABS(Divergence) <= 0.25, "Cite fee structure or cost pool variance",
+    "Needs justification"))
+```
+
+Dual-pool columns when title-match N<10: add "Pool A (Title)" and "Pool B (Experience)" median columns, cite N for each.
+
+**Sheet 5: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only):
+```
+Row 3: A="Fiscal Year"           B=<current federal FY>          (blue)
+Row 4: A="Nightly Lodging Rate"  B=[max monthly]                 (blue)
+Row 5: A="M&IE Daily Rate"       B=[rate]                        (blue)
 Row 6: A="First/Last Day M&IE"   B==B5*0.75                      (formula)
-Row 7: A="Nights per Trip"       B=[nights]                      (blue font)
-Row 8: A="Travel Days"           B==B7+1                         (formula)
-Row 9: A="Lodging per Trip"      B==B4*B7                        (formula)
-Row 10: A="M&IE per Trip"        B==B5*MAX(0,B8-2)+B6*2          (formula)
+Row 7: A="Nights per Trip"       B=[nights, 0 for day trip]       (blue)
+Row 8: A="Travel Days"           B==IF(B7=0,1,B7+1)              (formula)
+Row 9: A="Lodging per Trip"      B==B4*B7                        (formula, 0 when nights=0)
+Row 10: A="M&IE per Trip"        B==IF(B7=0,B6,B5*MAX(0,B8-2)+B6*2)  (formula)
 Row 11: A="Trip Total"           B==B9+B10                       (formula)
-Row 12: A="Trips per Year"       B=[trips]                       (blue font)
-Row 13: A="Travelers"            B=[count]                       (blue font)
+Row 12: A="Trips per Year"       B=[trips]                       (blue)
+Row 13: A="Travelers"            B=[count]                       (blue)
 Row 14: A="Annual Travel Cost"   B==B11*B12*B13                  (formula, bold)
 ```
 
-**Sheet 6: Methodology.** CR-specific narrative. Include: cost pool buildup with each pool explained, fee type selection rationale and FAR reference, fee-specific notes (CPFF: fee fixed regardless of cost outcome; CPAF: assumed earned % and evaluation basis; CPIF: target cost/fee, share ratios, min/max), statutory fee caps (10 USC 3322(a) for R&D), FAR 16.301-16.307 references, data sources with dates, escalation basis, travel methodology, exclusions, NAICS/PSC if provided.
+**Sheet 6: Methodology.** CR-specific narrative. Include: cost pool buildup with each pool explained, shift coverage FTE math if 24x7, fee type selection rationale and FAR reference, fee-specific notes (CPFF: fee fixed regardless of cost outcome; CPAF: assumed earned % and evaluation basis; CPIF: target cost/fee, share ratios, min/max), statutory fee caps (10 USC 3322(a) for R&D), FAR 16.301-16.307 references, data sources with dates, BLS vintage + aging adjustment, escalation basis, travel methodology (including 0-night day trips if applicable), exclusions, NAICS/PSC if provided.
 
 **Sheet 7: Raw Data.** All API query parameters and responses.
 
 **Formatting standards:**
 - Blue font (RGB 0,0,255) for all user-adjustable inputs
 - Black font for formula cells
-- Currency: $#,##0 with negatives in parentheses
-- Percentage: 0.0%
+- Currency: `$#,##0` with negatives in parentheses
+- Percentage: `0.0%`
 - Bold headers with light gray fill
-- Freeze panes below assumptions block (below row 10)
+- Freeze panes below assumption block (below row 14)
 - Auto-size column widths
 - Multiplier display: `0.00"x"`
 
@@ -436,11 +586,24 @@ When base year is partial, prorate labor and travel using $B$9. Full option year
 
 Never output as .md or HTML unless explicitly requested.
 
+### Step 9: Present the File
+
+After writing the workbook, copy to the outputs directory AND call `present_files` so the user sees a download link in the UI.
+
+```python
+import shutil
+shutil.copy(workbook_path, "/mnt/user-data/outputs/IGCE_CR_<project>.xlsx")
+# Then invoke the file-presentation tool
+present_files(["/mnt/user-data/outputs/IGCE_CR_<project>.xlsx"])
+```
+
+Do NOT skip this step. A workbook that exists in the sandbox but is not presented looks like a silent failure to the user.
+
 ## Edge Cases
 
 **Labor categories not in BLS:** Find closest SOC code(s), query candidates, present range, document rationale.
 
-**No CALC+ results:** Try broader keywords. If nothing, note unavailable; rely on BLS alone.
+**No CALC+ results:** Try broader keywords. If nothing, note unavailable; rely on BLS alone. Mark Status "No CALC+ data."
 
 **BLS wage at reporting cap:** Use $239,200/$115.00 as lower bound. Flag conservative floor.
 
@@ -452,12 +615,20 @@ Never output as .md or HTML unless explicitly requested.
 
 **Partial-year periods:** Prorate hours and travel. Fee calculated on prorated cost.
 
+**Silent-wrong-answer traps:**
+- `q=` parameter on CALC+ returns the full 265K-record corpus silently. Always use `keyword=` or `search=`.
+- `wage_stats` read from top level returns None. Always read from `aggregations.wage_stats`.
+- MSA code renumbering (Cleveland 17460 → 17410) returns NO_DATA silently. Verify code if all datatypes return empty.
+- BLS SOC with trailing zeros (151212 vs 15121200) fails the 25-char assertion AFTER you've already constructed several queries. Use exactly 6-char SOC.
+- Annotation text starting with `= + - @` triggers Excel formula parse. Escape with apostrophe or lead with text.
+- ODC / placeholder cells set to text "TBD" break SUM formulas. Use numeric 0 literal.
+
 ## What This Skill Does NOT Cover
 
 Include as placeholder rows or methodology notes:
-- **Airfare:** Use City Pair YCA fares when origin/destination known; otherwise TBD
+- **Airfare:** Use City Pair YCA fares when origin/destination known; otherwise numeric 0 placeholder
 - **Ground transportation:** Rental cars, mileage ($0.70/mile), taxi, rideshare
-- **ODCs:** Equipment, licenses, materials (user must provide)
+- **ODCs:** Equipment, licenses, materials (user must provide; placeholders as numeric 0)
 - **Subcontractor costs:** Requires separate estimate or vendor input
 - **DCAA audit rates:** Actual indirect rates from contractor disclosure statements
 - **OCONUS travel:** Per diem covers CONUS only; State Dept rates for OCONUS
@@ -468,7 +639,7 @@ Include as placeholder rows or methodology notes:
 ## Quick Start Examples
 
 **CPFF:** "CPFF IGCE for an R&D contract, 3 researchers in Bethesda, base plus 2 OYs"
-Claude will: map to SOC codes, pull Bethesda BLS wages, build cost pools, calculate 8% fixed fee, validate against CALC+, produce 7-sheet xlsx with fee analysis.
+Claude will: map to SOC 19-1099 (or domain-specific research), pull Bethesda BLS wages with P25/P50/P75, build cost pools with cell-referenced aging, calculate 8% fixed fee, validate against CALC+ at `keyword=` endpoint, produce 7-sheet xlsx with fee analysis and present.
 
 **BAA:** "We're issuing a BAA for AI research, need a cost estimate for evaluation"
 Claude will: confirm CR (suggest CPFF as default for BAAs), ask for labor details, run full workflow. Note FAR 35.016 in methodology.
@@ -476,14 +647,20 @@ Claude will: confirm CR (suggest CPFF as default for BAAs), ask for labor detail
 **CPAF:** "CPAF IGCE for a managed services contract, 10-person team in DC"
 Claude will: build cost pools, calculate base fee (3%) + award pool (7%) at 85% assumed earned, produce scenario analysis showing fee range.
 
-**CPIF:** "CPIF IGCE with 80/20 share ratio for systems integration in DC"
-Claude will: build cost pools, produce 3x3 matrix (low/mid/high cost x underrun/target/overrun fee), show fee bounded by min (3%) and max (12%).
+**CPIF with 24x7 coverage:** "CPIF IGCE with 80/20 share ratio for continuous systems monitoring in Cleveland, base plus 2 OYs"
+Claude will: invoke Step 0.5 for 24x7 → 4.2 FTE single-seat; pull Cleveland 0017410 (post-2023 OMB renumbering); build cost pools; produce 3x3 matrix (low/mid/high cost x underrun/target/overrun fee); show fee bounded by min (3%) and max (12%).
 
 **SOW-driven:** "Here's my SOW for an R&D effort, build me a CPFF estimate" [user uploads]
-Claude will: run Step 0 decomposition, validate, confirm CPFF, then full workflow.
+Claude will: run Step 0 decomposition, domain triage, validate, confirm CPFF, then full workflow.
 
-**Rate validation:** "Contractor proposes $195/hr on a CPFF contract. Reasonable?"
-Claude will: Workflow B. Pull CALC+, run BLS cost pool buildup, position $195, produce validation.
+**Rate validation:** "Contractor proposes $195/hr fully burdened cost + fee on a CPFF contract. Reasonable?"
+Claude will: Workflow B. Pull CALC+ via `keyword=`, run BLS cost pool buildup, position $195 within ±10 / ±25 / outside bands, produce validation.
+
+**Physical engineering (DOE):** "CR IGCE for 6-person mechanical engineering team at Oak Ridge, base + 4 OYs"
+Claude will: domain triage (DOE → 17-2xxx); pull 17-2141 Mechanical at Oak Ridge 28940; build cost pools; validate against CALC+ with dual-pool for senior engineers (title + experience match); produce workbook.
+
+**No travel:** "CPFF IGCE for on-site-only team in DC, base + 2 OYs"
+Claude will: build labor + fee workbook; Sheet 5 shows "Travel Not Applicable" text only; Travel row in Sheet 1 is literal 0; no SUM breakage.
 
 
 ---
