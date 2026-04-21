@@ -20,9 +20,6 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 | [GSA CALC+ Ceiling Rates](skills/gsa-calc-ceilingrates) | No key | Awarded NTE hourly rates from GSA MAS contracts (230K+ records). Independently tested across 8 runs on 2 Claude models (112 of 112 assertions passed; Round 2 patches shipped and validated). [Testing Record](skills/gsa-calc-ceilingrates/TESTING.md). Reference content merged into main skill. |
 | [BLS OEWS Wages](skills/bls-oews-api) | BLS key | Market wage data covering ~830 occupations across 530+ metro areas. Independently tested across 16 runs in two waves and 2 Claude models (112 of 112 assertions passed; Rounds 2 through 4 patches shipped; Dayton MSA renumbering + probe series verified live). [Testing Record](skills/bls-oews-api/TESTING.md). Reference content merged into main skill. |
 | [GSA Per Diem Rates](skills/gsa-perdiem-rates) | api.data.gov | Federal travel per diem (lodging + M&IE) for all CONUS locations. Reference content merged into main skill. |
-| [Federal Register API](skills/federalregister-api) | No key | All Federal Register documents since 1994. Proposed rules, final rules, notices, executive orders. Reference content merged into main skill. |
-| [eCFR Lookup](skills/ecfr-api) | No key | Full current CFR text, updated daily. FAR/DFARS clauses, version comparison back to 2017. Reference content merged into main skill. |
-| [Regulations.gov](skills/regulationsgov-api) | api.data.gov | Federal rulemaking dockets, proposed rules, public comments, docket histories. Reference content merged into main skill. |
 | [SAM.gov API](skills/sam-gov-api) | SAM.gov | Entity registration (UEI/CAGE), exclusion/debarment records, contract opportunities, contract awards (FPDS replacement). |
 | [SAM.gov Reference](skills/sam-gov-api-reference) | No key | Entity and award schemas, business type codes, composite workflows. Install alongside main skill. |
 
@@ -46,7 +43,7 @@ See **[AI-BOUNDARIES.md](AI-BOUNDARIES.md)**.
 
 ## MCP Servers
 
-Want more consistent results across runs? Install the MCP servers. Each of the 8 API data source skills above also ships as a Model Context Protocol (MCP) server on PyPI. When installed in Claude Desktop or another MCP client, orchestration skills call these servers directly for deterministic tool calls instead of letting Claude generate API request code through SKILL.md instructions alone.
+Want more consistent results across runs? Install the MCP servers. Each of the 5 API data source skills above also ships as a Model Context Protocol (MCP) server on PyPI. When installed in Claude Desktop or another MCP client, orchestration skills call these servers directly for deterministic tool calls instead of letting Claude generate API request code through SKILL.md instructions alone.
 
 ### What is MCP?
 
@@ -65,7 +62,7 @@ Model Context Protocol is Anthropic's open standard for LLM applications to comm
 2. Open `claude_desktop_config.json`:
    - Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-3. Paste an `mcpServers` block for each server you want. Example config for all 8:
+3. Paste an `mcpServers` block for each server you want. Example config for all 5:
 
 ```json
 {
@@ -75,14 +72,6 @@ Model Context Protocol is Anthropic's open standard for LLM applications to comm
       "args": ["bls-oews-mcp"],
       "env": {"BLS_API_KEY": "your-key-here"}
     },
-    "ecfr": {
-      "command": "uvx",
-      "args": ["ecfr-mcp"]
-    },
-    "federal-register": {
-      "command": "uvx",
-      "args": ["federal-register-mcp"]
-    },
     "gsa-calc": {
       "command": "uvx",
       "args": ["gsa-calc-mcp"]
@@ -91,11 +80,6 @@ Model Context Protocol is Anthropic's open standard for LLM applications to comm
       "command": "uvx",
       "args": ["gsa-perdiem-mcp"],
       "env": {"PERDIEM_API_KEY": "your-key-here"}
-    },
-    "regulations-gov": {
-      "command": "uvx",
-      "args": ["regulationsgov-mcp"],
-      "env": {"REGULATIONS_GOV_API_KEY": "your-key-here"}
     },
     "sam-gov": {
       "command": "uvx",
@@ -113,24 +97,21 @@ Model Context Protocol is Anthropic's open standard for LLM applications to comm
 4. Restart Claude Desktop.
 5. Orchestration skills will use the installed MCP servers automatically when available.
 
-See [API Keys](#api-keys) below for where to get free keys for the 4 servers that need them. `ecfr`, `federal-register`, `gsa-calc`, and `usaspending` need no key.
+See [API Keys](#api-keys) below for where to get free keys for the 3 servers that need them. `gsa-calc` and `usaspending` need no key.
 
-### All 8 MCP servers
+### All 5 MCP servers
 
 Each repo ships with a TESTING.md documenting its hardening record. Click through for bug counts, audit rounds, and signature bug stories.
 
 | MCP | Version | Tests | Source | Testing Record |
 |---|---|---|---|---|
 | bls-oews-mcp | 0.2.2 | 60 | [GitHub](https://github.com/1102tools/bls-oews-mcp) | [Testing Record](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
-| ecfr-mcp | 0.2.1 | 101 | [GitHub](https://github.com/1102tools/ecfr-mcp) | [Testing Record](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
-| federal-register-mcp | 0.2.2 | 77 | [GitHub](https://github.com/1102tools/federal-register-mcp) | [Testing Record](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
 | gsa-calc-mcp | 0.2.2 | 117 | [GitHub](https://github.com/1102tools/gsa-calc-mcp) | [Testing Record](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
 | gsa-perdiem-mcp | 0.2.1 | 172 | [GitHub](https://github.com/1102tools/gsa-perdiem-mcp) | [Testing Record](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
-| regulationsgov-mcp | 0.2.0 | 51 | [GitHub](https://github.com/1102tools/regulationsgov-mcp) | [Testing Record](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
 | sam-gov-mcp | 0.3.1 | 79 | [GitHub](https://github.com/1102tools/sam-gov-mcp) | [Testing Record](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
 | usaspending-gov-mcp | 0.2.3 | 62 | [GitHub](https://github.com/1102tools/usaspending-gov-mcp) | [Testing Record](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
 
-Across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed during hardening.
+Across all 5 MCPs: 490 regression tests covering roughly 224 bugs fixed during hardening.
 
 ## Testing and Validation
 
@@ -165,22 +146,19 @@ MCP servers use a different testing methodology from the skills above: instead o
 | MCP | Audit rounds | Regression tests | Bugs fixed | Testing Record |
 |---|---|---|---|---|
 | [bls-oews-mcp](https://github.com/1102tools/bls-oews-mcp) | 5 | 60 | 22 | [Testing Record](https://github.com/1102tools/bls-oews-mcp/blob/main/TESTING.md) |
-| [ecfr-mcp](https://github.com/1102tools/ecfr-mcp) | 5 | 101 | 72 | [Testing Record](https://github.com/1102tools/ecfr-mcp/blob/main/TESTING.md) |
-| [federal-register-mcp](https://github.com/1102tools/federal-register-mcp) | 4 | 77 | ~30 | [Testing Record](https://github.com/1102tools/federal-register-mcp/blob/main/TESTING.md) |
 | [gsa-calc-mcp](https://github.com/1102tools/gsa-calc-mcp) | 4 | 117 | 86 | [Testing Record](https://github.com/1102tools/gsa-calc-mcp/blob/main/TESTING.md) |
 | [gsa-perdiem-mcp](https://github.com/1102tools/gsa-perdiem-mcp) | 6 | 172 | 55 | [Testing Record](https://github.com/1102tools/gsa-perdiem-mcp/blob/main/TESTING.md) |
-| [regulationsgov-mcp](https://github.com/1102tools/regulationsgov-mcp) | 3 | 51 | 22 | [Testing Record](https://github.com/1102tools/regulationsgov-mcp/blob/main/TESTING.md) |
 | [sam-gov-mcp](https://github.com/1102tools/sam-gov-mcp) | 4 | 79 | 46 | [Testing Record](https://github.com/1102tools/sam-gov-mcp/blob/main/TESTING.md) |
 | [usaspending-gov-mcp](https://github.com/1102tools/usaspending-gov-mcp) | 4 | 62 | 15 | [Testing Record](https://github.com/1102tools/usaspending-gov-mcp/blob/main/TESTING.md) |
 
-Combined across all 8 MCPs: 719 regression tests covering roughly 350 bugs fixed.
+Combined across all 5 MCPs: 490 regression tests covering roughly 224 bugs fixed.
 
 ## API Keys
 
 Three free keys cover everything:
 
 - **BLS**: Register at [data.bls.gov/registrationEngine](https://data.bls.gov/registrationEngine/) (500 queries/day)
-- **api.data.gov**: Register at [api.data.gov/signup](https://api.data.gov/signup/) (1,000 req/hr; covers Per Diem + Regulations.gov)
+- **api.data.gov**: Register at [api.data.gov/signup](https://api.data.gov/signup/) (1,000 req/hr; covers Per Diem)
 - **SAM.gov**: Register at [SAM.gov](https://sam.gov/) (free account; API key in your profile; keys expire every 90 days)
 
 Tell Claude to remember your keys and it will use them automatically.
