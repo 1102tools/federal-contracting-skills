@@ -162,6 +162,20 @@ Length:    4       7         6          6          2
 Example:   OEUN    0000000   000000     151252     13
 ```
 
+**Python slice indices (0-based; use these to parse or validate a series ID string):**
+
+```python
+# Given sid = "OEUM0047900000000151212  13"  (25 chars)
+prefix   = sid[0:4]    # "OEUM"
+area     = sid[4:11]   # "0047900"
+industry = sid[11:17]  # "000000"
+soc      = sid[17:23]  # "151212"
+datatype = sid[23:25]  # "13"
+assert len(sid) == 25
+```
+
+Do NOT compute slice indices on the fly. Workers have shipped off-by-one bugs (e.g., `sid[13:19]` for SOC instead of `sid[17:23]`) that cause KeyError on response parsing. Paste the slices above verbatim.
+
 ### PREFIX (4 chars)
 
 | Prefix | Scope | Area Code format |
@@ -209,6 +223,59 @@ Common industries:
 ### OCCUPATION (6 chars)
 
 SOC code without the dash. See "Common SOC Codes" below and the full federal-use table further down.
+
+---
+
+## Pre-flight SOC Validation (do this before the full 9-datatype pull)
+
+The BLS v2 API treats "SOC not published at that MSA" exactly like "SOC doesn't exist" — both return "Series does not exist" with empty data. If you batch a 9-datatype query for every LCAT and find one returns nothing, you have already spent 9 request slots before knowing to fall back. Validate each SOC with a single cheap query first:
+
+```python
+def preflight_soc(occ_code, prefix, area):
+    """Ping one cheap datatype to confirm the SOC publishes at this geography.
+
+    Returns True if data is published, False if not.
+    """
+    sid = build_oes_series_id(prefix, area, "000000", occ_code, "04")  # datatype 04 = annual mean
+    response = query_bls([sid])
+    parsed = parse_oes_results(response)
+    return parsed.get(sid, {}).get("is_numeric", False)
+
+# Example: before querying 9 datatypes for 15-1256 in Huntsville
+if not preflight_soc("151256", "OEUM", "0026620"):
+    # Route to SOC rollup fallback (see below) OR parent family
+    pass
+else:
+    # Safe to batch the full 9-datatype pull
+    pass
+```
+
+Use the one-second preflight cost to save 9 round trips per dead SOC/area combination.
+
+## BLS v2 Resilience (503 handling)
+
+BLS v2 returns HTTP 503 ("Service Unavailable") under load. The API is public and un-authed for ~500 calls/day per IP; it throttles aggressively rather than returning 429. Transient 503s are common, especially mid-morning Eastern time.
+
+**Pattern:** query one SOC per call with 3-5 retries at a 3-second sleep between attempts.
+
+```python
+import time, json, urllib.request, urllib.error
+
+def query_bls_with_retry(series_ids, max_retries=5, sleep_s=3):
+    for attempt in range(max_retries):
+        try:
+            # ... build and send request ...
+            response = urllib.request.urlopen(req, timeout=30)
+            return json.loads(response.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 503 and attempt < max_retries - 1:
+                time.sleep(sleep_s)
+                continue
+            raise
+    raise RuntimeError(f"BLS v2 returned 503 after {max_retries} retries")
+```
+
+**Do NOT batch all SOCs for all LCATs in a single call to work around 503.** Per-SOC calls with retries recover cleanly; batched calls fail all-or-nothing and cost a full quota slot each.
 
 ---
 
@@ -453,15 +520,39 @@ Always pull datatypes 02 and 05 alongside the wage measures. An IGCE that cites 
 
 ---
 
-## Fallback Pattern: Metro to State to National
+## Fallback Pattern: SOC Rollup and Metro-to-State-to-National
 
-When a specific occupation at a specific metro returns no data, you may need to fall back to broader geography. This is common for specialty occupations (nuclear engineering, cleared cyber roles, etc.) in smaller metros.
+When a specific occupation at a specific metro returns "Series does not exist," you have two fallback axes: **SOC rollup** (try a broader occupation family) and **geographic rollup** (metro → state → national). Pick the axis that matches the failure reason.
+
+### SOC rollup: when the SOC is in BLS taxonomy but not published at this MSA
+
+Some detailed SOCs exist in the BLS taxonomy but are not published at all metros because BLS needs a minimum sample size. Example: 15-1256 (Software Developers, Testers, and Quality Assurance Analysts) is a valid 2018 SOC but BLS OEWS does not publish it at Huntsville MSA. Querying it returns "Series does not exist" for every datatype.
+
+**Rule: if preflight fails at the detailed SOC, roll up to the parent SOC family before changing geography.**
+
+Parent SOC families relevant to federal IGCE work:
+
+| Detailed SOC | Parent family | When to roll up |
+|---|---|---|
+| 15-1253 QA Tester | 15-1252 Software Developers (P75 as senior proxy) | QA tester at small metros |
+| 15-1256 Software Testers (2018 split) | 15-1252 Software Developers | Testers at any non-major metro |
+| 15-1254 Web Developer | 15-1252 Software Developers | Web dev at any non-coastal metro |
+| 15-1299 Computer Occupations, All Other | query specific SOC instead; 15-1299 is a catch-all | IT PM → use 11-3021 |
+| 17-2199 Engineers, All Other | match to specific 17-2xxx sub-family if discipline is known | Systems engineers in non-IT context |
+| 13-1082 Project Management | 13-1111 Management Analyst for non-technical PMs | PM role at smaller metros |
+
+**Document the rollup in methodology:** "SOC 15-1256 not published at MSA 26620; rolled up to parent family 15-1252 per BLS taxonomy. Used P75 as senior-tier anchor."
+
+### Geographic rollup: when the SOC publishes elsewhere but not in the target area
+
+When preflight fails at MSA but the same SOC works at state or national level, fall back geographically. This is common for specialty occupations (nuclear engineering, cleared cyber roles) in smaller metros.
 
 ### Fallback order
 
-1. **Metro (OEUM):** Most geographically precise. Preferred.
-2. **State (OEUS):** Broader pool. May be suppressed if the state's workforce for that occupation is concentrated in a few employers (nuclear in TN, certain intel SOCs in VA).
-3. **National (OEUN):** Always available but least locally accurate.
+1. **Preferred SOC, target MSA (OEUM):** Most precise. Preferred.
+2. **Preferred SOC, parent SOC family, target MSA:** Use when the detailed SOC doesn't publish at this MSA but the family does.
+3. **Preferred SOC, state (OEUS):** Broader geographic pool. May be suppressed if the state's workforce for that occupation is concentrated in a few employers (nuclear in TN, certain intel SOCs in VA).
+4. **Preferred SOC, national (OEUN):** Always available but least locally accurate.
 
 ### Counterintuitive pattern
 

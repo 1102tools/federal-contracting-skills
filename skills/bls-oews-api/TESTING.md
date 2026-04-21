@@ -4,9 +4,9 @@
 
 ## The bottom line
 
-Two waves of independent testing in April 2026 (16 end-to-end runs, 224 binary assertions graded) show the BLS OEWS API skill reliably pulls market wage data across four real-world federal acquisition scenarios on both Claude Opus 4.7 and Claude Sonnet 4.6. One assertion failed in Wave 1 (Sonnet using a stale Knoxville MSA code that silently returned empty data, causing an unnecessary fallback to national and a 27% underreported wage). The skill was patched. Wave 2 retested the same four scenarios on both models and all 112 assertions passed.
+Two waves of independent testing in April 2026 (16 end-to-end runs, 224 binary assertions graded) show the BLS OEWS API skill reliably pulls market wage data across four real-world federal acquisition scenarios on both Claude Opus 4.7 and Claude Sonnet 4.6. One assertion failed in Wave 1 (Sonnet using a stale Knoxville MSA code that silently returned empty data, causing an unnecessary fallback to national and a 27% underreported wage). The skill was patched. Wave 2 retested the same four scenarios on both models and all 112 assertions passed. Rounds 3-5 patches shipped subsequently based on findings during IGCE FFP and LH/TM orchestration testing.
 
-**Wave 2 aggregate: 100% pass across 112 assertions.**
+**Wave 2 aggregate: 100% pass across 112 assertions. Rounds 2 through 5 patches shipped.**
 
 ## Scenarios tested and how reliably they work
 
@@ -224,6 +224,18 @@ Shipped based on findings from IGCE FFP Wave 2 testing (April 2026) where an Opu
 
 1. **Cleveland MSA renumbered from 17460 to 17410.** Added Cleveland 0017410 to common metros under a new "NASA research centers" subsection with explicit annotation: "renumbered from 17460 in May 2024 OEWS per OMB Bulletin 23-01."
 2. **Expanded 2024 MSA realignment note** to document three distinct effects of OMB Bulletin 23-01: same-code composition changes, complete renumberings, and renamings. Added silent-failure pattern warning: if a previously-working MSA code returns NO_DATA across every SOC, the metro was renumbered. Do NOT assume BLS suppressed the occupation. Added BLS area code list URL as the canonical source.
+
+## Round 5 patches shipped
+
+Triggered by findings during LH/T&M IGCE Wave 1 testing. Three Opus workers building LH and T&M IGCEs consistently surfaced four usage patterns that the skill under-documented. Patches shipped April 2026.
+
+1. **Pre-flight SOC validation section added.** New section before "Common Area Codes" that prescribes a single datatype-04 ping per SOC/area combination before committing to the full 9-datatype pull. Saves 9 request slots per dead SOC/area combo. LH/TM workers all hit this inefficiency independently.
+
+2. **BLS v2 503 retry pattern documented prominently.** New resilience section covering per-SOC batching with 3-5 retries at 3-second sleep intervals. Explains the throttle-via-503 behavior of the un-authed public API. Explicit anti-pattern: do not bundle all SOCs in one call to work around 503; that fails all-or-nothing and costs a quota slot each.
+
+3. **SOC rollup fallback rule added to Fallback Pattern section.** Previous skill only covered geographic rollup (metro → state → national). Added SOC rollup axis with parent-family table for IT-relevant SOCs: 15-1253/15-1256 → 15-1252, 15-1254 → 15-1252, 15-1299 routing advice, 17-2199 discipline-matching guidance, 13-1082 → 13-1111 for non-technical PMs. Documents the 15-1256-at-Huntsville case seen in LH/TM Scenario 1.
+
+4. **Python slice indices added to Series ID Format section.** The 25-character series ID breakdown had length annotations but no Python slice indices. Workers shipped off-by-one bugs (`sid[13:19]` for SOC instead of `sid[17:23]`) that caused KeyError on response parsing. Slices now documented verbatim with a copy-paste block.
 
 ## Round 4 patches shipped
 
