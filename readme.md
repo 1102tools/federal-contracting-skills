@@ -63,4 +63,4 @@ MIT
 
 ## Author
 
-Built by [James Jenrette](https://www.linkedin.com/in/jamesjenrette/), senior federal contracting officer (GS-1102-14), unlimited warrant. Independently developed and not endorsed by any federal agency.
+Built by [James Jenrette](https://www.linkedin.com/in/jamesjenrette/), lead systems analyst and contracting officer. Independently developed and not endorsed by any federal agency.
