@@ -417,6 +417,48 @@ Four consecutive rounds across Waves 4 and 5 have reported `$B<prompt-word>` sub
 
 These are queued for Wave 6.
 
+## Wave 6: Cross-skill findings port (Claude Code CLI + Desktop, Opus 4.7)
+
+### Context
+
+Wave 6 did not run FFP-specific scenarios. Instead, it ported horizontal findings discovered during LH/T&M Wave 2 testing plus shipped a hardened v2 ai-boundaries gate to replace the Wave 5 patch that proved insufficient in live testing.
+
+The v2 ai-boundaries gate was forced by a live LH/T&M test where the Wave 5 patch failed. The LH/T&M skill (carrying the same Wave 5 ai-boundaries language as FFP) drafted a full price reasonableness memo with 5 separate "rate is fair and reasonable" determinations, recommended negotiation positions toward CALC+ P75, and drafted Evaluation Notice language, all forbidden by the Wave 5 ai-boundaries patch. Root cause: Wave 5 placed the gate at Workflow B Step 6 "Stop" which is too far downstream; by that point the model was committed to helpful-memo-author momentum and the "Stop" instruction read as advisory rather than blocking. Fix: moved the gate to Step 0 with a token-scan + verbatim refusal template + Option A/B bifurcation (Option A = positioning data only; Option B = memo template fill with CO's verbatim rationale and determination).
+
+FFP Workflow B was updated with the same v2 gate.
+
+### Horizontal findings ported from LH/T&M Wave 2
+
+Six patches were ported to FFP:
+
+1. **CALC+ `keyword_search` → `igce_benchmark` redirect** for stats-only queries. `igce_benchmark` returns percentiles without the full record list; faster and avoids false signals on large corpora.
+2. **Tier-matched keyword rule.** Query each seniority tier (P25/P50/P75) with its own keyword string, not the aggregate pool. Avoids false divergence flags when a Senior LCAT compared against an aggregate title-match pool reads as overpriced because the pool contains Juniors.
+3. **NSA Bethesda per diem crosswalk fix.** DoD installation crosswalk pointed NSA Bethesda at Montgomery County. NSA Bethesda staff living in Bethesda use the DC composite locality, not Montgomery County, per GSA convention. Crosswalk table updated.
+4. **FY rollover guidance.** If contract PoP start is within 6 months of next FY, query both FYs and document refresh-on-publication. Avoids locking workbook into soon-to-expire rates.
+5. **Raw Data sheet granularity rule.** Use summary tables with query parameters inline, not raw JSON dumps. Several Wave 2 LH/T&M workbooks shipped with 40KB+ of raw CALC+ bucket JSON that added nothing readable to the audit trail.
+6. **Step 9 CLI branch.** `present_files` is claude.ai-only. CLI path is simple file-write-then-report. Macos Desktop with Numbers is third branch. Wave 5 already partially covered this; v2 consolidates the three-environment fork.
+
+Plus:
+
+7. **Stage A/B skip for structured inputs.** Workflow A with structured handoff (SOW/PWS builder output) does not need the Stage A decomposition approval; only Workflow A+ from raw SOW text needs it.
+
+### FFP-specific bloat trimmed
+
+The skill had accumulated cruft from prior waves. Trimmed in Wave 6:
+
+- **Known-fragile SOCs paragraph** (added in Wave 4) collapsed into a two-row entry in the Information to Collect table. The paragraph repeated the SOC mapping table's warnings without adding new content.
+- **Stacked premium worked example** (added in Wave 5 Round 1) reduced from a full-page decomposition to a 4-row inline table.
+- **Quick Start** cut from 12 examples to 4. The 4 retained cover the distinct pricing-structure decision gates (FFP-by-period, FFP-by-deliverable, multi-location, rate-validation-only). The trimmed 8 were restatements of the same decisions against different agencies.
+- **Edge Cases** trimmed from a mixed list of genuine traps and quality suggestions down to silent-wrong-answer traps only. Quality suggestions went into a new "Optional enhancements" appendix.
+
+### Line delta
+
+SKILL.md: 897 → 854 (-43 lines).
+
+### Status
+
+All Wave 6 patches were inherited from LH/T&M testing, not directly re-tested on FFP. FFP regression testing against S1-S6 on the post-Wave-6 skill is queued.
+
 ## Independent grading methodology
 
 The Wave 1 and Wave 2 testing records were produced under a consistent methodology:

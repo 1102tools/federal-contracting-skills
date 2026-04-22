@@ -89,7 +89,35 @@ User has proposed rates and wants to see where they sit against market data. The
 
 Triggers: "is this FFP rate reasonable," "validate these wrap rates," "check this FFP proposal," "price reasonableness analysis."
 
-**Workflow B steps:**
+**Step 0 / GATE (MANDATORY FIRST — runs before any other Workflow B step).**
+
+Before any analysis, scan the user's prompt for these tokens (case-insensitive): "memo", "determination", "fair and reasonable", "price reasonableness", "reasonableness memo", "draft the memo", "for the file", "contract file", "document this", "memorandum".
+
+If ANY of those tokens appear, the ENTIRE first response must be the refusal template below, emitted verbatim. No rate analysis. No CALC+ pull. No BLS pull. No "let me start with the analysis" preamble. No offer to continue with the memo if the user provides more info in the same response. Emit the template. Stop. Wait for the user's explicit choice.
+
+**Refusal template (emit verbatim):**
+
+> I can pull positioning data that shows where each proposed rate sits against CALC+ ceiling rates and BLS market wages. I cannot draft a price reasonableness memo, write a "fair and reasonable" determination, or recommend negotiation positions. Those are Contracting Officer decisions under FAR 15.404-1, not skill outputs.
+>
+> Tell me which you want:
+>
+> **Option A — Positioning data only.** I produce a table: per-LCAT proposed rate, CALC+ P25/P50/P75/P90 with sample size, BLS metro burdened equivalent. No verdict. No recommendation. You draw the conclusion.
+>
+> **Option B — Memo template fill.** You provide your rationale (what supports or doesn't support each rate) and your determination (fair and reasonable / not fair and reasonable / declining to determine). I drop your text verbatim into the memo template, add the benchmark tables underneath, mark it DRAFT. I will not originate determinations, recommend negotiation positions, or add hedging language.
+>
+> Which option?
+
+**Proceed to Steps 1-5 only after:**
+- User explicitly selects Option A, OR
+- User provides Option B inputs (rationale text + determination text)
+
+**Hard prohibitions at ALL times (Option A or Option B):**
+- Do NOT write "the rate is fair and reasonable" or "not fair and reasonable" unless quoting the user's Option B text verbatim.
+- Do NOT label rates "competitive," "aggressive," "outlier requiring justification," "premium warrants clarification," or any equivalent evaluative phrase. Use positional language only ("at P77," "above P50 by X%," "below P25").
+- Do NOT recommend negotiation positions, evaluation notices, or counter-offer dollar figures.
+- Do NOT write "Summary of findings" or "Determination" sections that draw conclusions the user has not supplied.
+
+**Workflow B steps (run only after Step 0 gate clears):**
 
 1. Collect the vendor's proposed labor categories, fully burdened hourly rates, and any scope context (metro, clearance, experience tier).
 
@@ -115,10 +143,7 @@ Triggers: "is this FFP rate reasonable," "validate these wrap rates," "check thi
 
 6. **Stop.** Do not write "the rate is fair and reasonable." Do not recommend negotiation positions. Do not suggest "push back only if..." text.
 
-7. **Memo drafting gate.** If the user asks for a price reasonableness memo:
-   - **If the user has NOT supplied the rationale and conclusion:** respond "Provide the rationale you want documented and your fair-and-reasonable conclusion (or the determination you intend to make). I'll format it into the memo template with the benchmark tables."
-   - **If the user HAS supplied the rationale:** format the CO's exact text into the memo template. Fill in benchmark tables with the data pulled in Steps 2-4. Leave Section 7 (Determination) with the CO's supplied conclusion language verbatim; do not paraphrase or add hedging.
-   - The memo is always marked DRAFT until the CO signs. Use `[Contracting Officer Name]` and `[Agency]` placeholders.
+7. **Memo output (Option B path only).** If the user selected Option B at the Step 0 gate and supplied rationale + determination text, fill the memo template: benchmark tables from Steps 2-4, the user's rationale text verbatim in the findings section, the user's determination text verbatim in Section 7 (Determination). Do NOT paraphrase, do NOT add hedging, do NOT originate any conclusion text. Mark DRAFT. Use `[Contracting Officer Name]` and `[Agency]` placeholders. If Option A was selected, skip this step entirely.
 
 ## Information to Collect
 
@@ -241,7 +266,7 @@ Security Operations     | InfoSec Analyst     | 15-1212  | 1-2       | Continuou
 Project Oversight       | Project Manager     | 13-1082  | 1         | Single contract
 ```
 
-6. **User validation gate (CRITICAL) - two stages, not one.** Do not conflate "confirm the decomposition" with "pick build parameters." Run them separately:
+6. **User validation gate (CRITICAL) - two stages, not one.** Stage A/B gate applies to Workflow A+ (SOW-driven builds). Skip for Workflow A-LH/A-TM (FFP, CR) when the user provides structured inputs (LCATs, FTE, location, PoP) — those don't need decomposition validation, go straight to build parameters if anything is missing. Do not conflate "confirm the decomposition" with "pick build parameters." Run them separately:
 
    **Stage A - Decomposition validation.** After presenting the decomposition table, ask the user to confirm or amend it. Use `AskUserQuestion` with options like "Decomposition looks right, proceed" / "Modify LCAT X" / "Add LCAT Y" / "Adjust FTE estimates." Response MUST END after this question. Wait for explicit confirmation before continuing.
 
@@ -356,7 +381,7 @@ The MCP builds the 25-char series ID, handles footnote code 5 (cap) vs. code 8 (
 
 **Geography fallback (caller's job):** metro first; if the MCP returns "series does not exist" on every datatype, try state; fall back to national. Recommend the median as the default basis and present the full distribution.
 
-**Known-fragile SOCs at metro level.** Some specialty SOCs are commonly suppressed outside major tech hubs and routinely force a state-level fallback. Expect suppression on: 15-1212 (Information Security Analyst) for most mid-size metros including Cleveland, 15-2051 (Data Scientist) outside SF/DC/Seattle/Boston, 19-2012 (Physicists) outside DOE lab metros. Fall straight to state without treating it as a data quality signal.
+**Known-fragile SOCs at metro level.** Some specialty SOCs suppress at metro level; fall through to state without treating it as a data quality signal.
 
 **Shortcut:** for a single-LCAT single-location sanity check, `mcp__bls-oews__igce_wage_benchmark(occ_code, scope, area_code, burden_low, burden_high)` returns annual and hourly mean/median/P10/P90 with a burdened range in one call. Use for Workflow B rate checks; use `get_wage_data` when building the full workbook.
 
@@ -446,9 +471,11 @@ Follow a discovery-first pattern. The MCP returns clean aggregation stats; your 
 1. **Discover buckets.** Call `mcp__gsa-calc__suggest_contains(field="labor_category", term=<LCAT term>)`. Returns up to 100 buckets with `doc_count` per bucket plus a `likely_truncated` flag. If truncated, narrow the term.
 2. **If the top 2-3 buckets have combined records >=50:** call `mcp__gsa-calc__exact_search(field="labor_category", value=<exact bucket name>)` for each, then aggregate. This avoids the wildcard-match contamination that `keyword_search` produces (it also matches vendor_name and idv_piid).
 3. **If buckets are fragmented** (every bucket under ~30 records, common for niche cleared cyber / specialty engineering): fall back to `mcp__gsa-calc__keyword_search(keyword=<term>)`. Document the contamination caveat in Methodology.
-4. **One-shot alternative:** `mcp__gsa-calc__igce_benchmark(labor_category=<exact>, experience_min=N, education_level=X)` returns count, min/max/mean, std dev, and P10/P25/P50/P75/P90 in one call. Good when the bucket name is already known.
+4. **One-shot alternative:** `mcp__gsa-calc__igce_benchmark(labor_category=<exact>, experience_min=N, education_level=X)` returns count, min/max/mean, std dev, and P10/P25/P50/P75/P90 in one call. Good when the bucket name is already known. When you only need pool stats (count, min/max, percentiles) for validation, call `mcp__gsa-calc__igce_benchmark` instead of `keyword_search` — igce_benchmark returns trimmed stats without the 50KB+ labor_category/current_price aggregation buckets that blow up response size.
 
 The MCP returns canonical stats at the top level of the response dict (count, min_rate, max_rate, avg_rate, p25, p50, p75). No JSON-path archaeology required.
+
+Match the vendor's tier in the keyword, not the aggregate title. For 'Mid Software Developer' query `Software Developer II` not `Software Developer` — the aggregate pool mixes interns through Senior levels and can falsely flag rates as +70% divergent when the tier-matched pool is +11%.
 
 **Rate validation positioning (data only, not a determination).** Present the vendor's / IGCE's FBR against CALC+ P25/P50/P75 as a positional statement. Do NOT assert "reasonable," "defensible," "outlier requiring justification," or "within expected band." Those are CO determinations. The skill describes WHERE the rate sits and documents the stacked factors that place it there.
 
@@ -458,24 +485,7 @@ The MCP returns canonical stats at the top level of the response dict (count, mi
 - "Below P25; pool composition or LCAT alignment may warrant CO review."
 - "Premium factors not captured by this data: [TS/SCI clearance premium, SCIF overhead, specialty market]. CO sets the relevant premium band if one applies."
 
-**Stacked premium: show the math, do not conclude.** When divergence above CALC+ P50 looks large (40%+), decompose the divergence into its source factors so the CO can see where the premium comes from. Worked example:
-
-```
-FBR at IGCE mid:        $283
-CALC+ national P50:     $135
-Raw divergence:         +110%
-
-Source decomposition:
-  Metro ratio          (Baltimore BLS / national BLS): 1.15x
-  Seniority tier       (P75 / P50 within SOC):          1.30x
-  Aging                (34 months @ 2.5%/yr):           1.072x
-  Wrap vs commercial   (DoD SCIF 3.64 / MAS 2.47):      1.47x
-  Compounded ratio:     1.15 × 1.30 × 1.072 × 1.47 = 2.36x
-  → FBR at 2.36x of CALC+ national P50 = $318 expected
-  Actual FBR is 11% below the expected stacked-factor rate.
-```
-
-Present this table in Methodology. Do NOT write "this is defensible" or "the CO can conclude reasonableness"; present the decomposition and let the CO conclude. If actual FBR is significantly above the stacked-factor expectation, flag which factor is larger than data supports and let the CO decide how to adjust.
+**Stacked premium: show the math, do not conclude.** When divergence above CALC+ P50 looks large (40%+), decompose the divergence into source factors (metro ratio, seniority tier, aging, wrap vs commercial) and present the compounded ratio in Methodology. Do NOT write "this is defensible"; present decomposition and let the CO conclude. If actual FBR is significantly above the stacked-factor expectation, flag which factor is larger than data supports.
 
 **Calibration guidelines for Sheet 4 Status column (positioning only, not determinations):**
 
@@ -510,7 +520,7 @@ Call `mcp__gsa-perdiem__estimate_travel_cost(city, state, num_nights, travel_mon
 | Fort Belvoir, VA | Fairfax / Alexandria, VA | DC |
 | Pentagon, VA | Arlington, VA (use DC rate) | DC |
 | Joint Base Andrews, MD | District of Columbia | DC |
-| NSA Bethesda / Walter Reed, MD | Montgomery County, MD | DC |
+| NSA Bethesda / Walter Reed, MD | District of Columbia (composite) | DC |
 | Fort Liberty (Bragg), NC | Fayetteville, NC | Fayetteville |
 | Peterson SFB / Schriever SFB / Fort Carson, CO | Colorado Springs, CO | Colorado Springs |
 | Wright-Patterson AFB, OH | Dayton, OH | Dayton |
@@ -536,6 +546,8 @@ if response == [] or (isinstance(response, dict) and "No rates found for FY" in 
 ```
 
 Note the fallback in Methodology: "FY{requested} per diem not yet published; FY{fallback} rates used as conservative baseline." Default FY policy: use contract-start FY when available; if that FY is not yet published, fall back to current FY.
+
+If the contract PoP start is within 6 months of the next federal fiscal year, query both FYs; if the target FY is not yet published (FY{N+1} publishes mid-August {N}), use current FY as conservative baseline and note in methodology: 'refresh on FY{N+1} publication.'
 
 **Absorbed vs discrete low-effort tasks.** The skill does not have a hard rule for when to break out quarterly tabletops, annual audits, monthly reports, or similar low-effort recurring tasks as separate labor lines vs absorbing them into base FTE counts. Convention:
 
@@ -740,7 +752,7 @@ Include:
 - Exclusions (airfare TBD, ODCs TBD, subs not included, OCONUS not covered)
 - NAICS/PSC if provided
 
-**Sheet 7: Raw Data.** All MCP tool call parameters and responses. If the MCP does not surface the full 25-char BLS series ID in its response, record the series-ID equivalent: MSA code + SOC + datatypes queried + `year` parameter. A reviewer should be able to reproduce the BLS query from what is recorded. Also record: CALC+ keywords and exact-match buckets with record counts, per diem city/state/FY/month parameters, and City Pair fares if retrieved.
+**Sheet 7: Raw Data.** All MCP tool call parameters and responses. If the MCP does not surface the full 25-char BLS series ID in its response, record the series-ID equivalent: MSA code + SOC + datatypes queried + `year` parameter. A reviewer should be able to reproduce the BLS query from what is recorded. Also record: CALC+ keywords and exact-match buckets with record counts, per diem city/state/FY/month parameters, and City Pair fares if retrieved. Record summary tables (count, percentiles, series IDs, query parameters) — NOT raw JSON dumps. A reviewer should reproduce the query from the parameters, not wade through 50KB of aggregation buckets.
 
 **Sheet 1 Summary column presentation:**
 
@@ -792,34 +804,20 @@ Verify the computed total lands within 1% of your Python-side expected total. If
 
 ### Step 9: Present the File
 
-**Required final step. Do NOT skip.** The delivery path depends on the runtime environment:
+**Required final step. Do NOT skip.**
 
-**claude.ai web chat:**
-```python
-import shutil
-shutil.copy(workbook_path, "/mnt/user-data/outputs/")
-# Then call present_files with the filename
-```
+**Environment-specific delivery:**
+- **claude.ai web chat:** copy to `/mnt/user-data/outputs/<name>.xlsx` and call `present_files([...])`.
+- **Claude Code CLI:** write to `$PWD` or user-supplied path. Print the absolute path. On macOS also run `open <path>`; on Linux `xdg-open <path>`; on Windows `start "" <path>`. Do NOT try `/mnt/user-data/outputs/` — does not exist outside claude.ai.
+- **macOS Claude Desktop with Numbers:** write path, run `open <path>`. Numbers auto-recalculates on open.
 
-**Claude Code CLI (or any non-sandboxed host):** write the workbook to the user's working directory (or an explicit path the user provided) and surface the absolute path in chat. On macOS also run `open <path>`; on Linux `xdg-open <path>`; on Windows `start "" <path>`. Do NOT try to write to `/mnt/user-data/outputs/` - the path does not exist outside claude.ai.
+Do NOT skip delivery. A workbook in the sandbox that isn't surfaced looks like a silent failure.
 
 **Recalc script availability is also environment-specific.** The `python /mnt/skills/public/xlsx/scripts/recalc.py <file>` script exists on claude.ai; on Claude Code CLI, either skip recalc (Excel recalculates on open) or use `openpyxl`'s formula parser and write the computed values back if recalc-on-save matters for the consumer.
 
-The skill is not complete until the file is delivered. Do not rely on the user asking "where's the file?" - push the deliverable explicitly with the absolute path.
-
 ## Edge Cases
 
-**Labor categories not in BLS:** Find closest SOC code(s), query all candidates, present range, let user select, document mapping rationale.
-
-**No CALC+ results:** Broaden the `suggest_contains` term or try a parent category. If still nothing, note CALC+ unavailable; estimate relies on BLS alone. Mark Status as "No CALC+ data." Do NOT silently fall through to keyword_search without documenting the contamination caveat.
-
-**BLS wage at reporting cap:** Use $239,200/$115.00 as lower bound. Flag in narrative that burdened rate is a conservative floor. For high-wage metros where P75 or P90 is capped, use P75 as the defensible upper anchor; cross-reference commercial surveys (Levels.fyi, Radford) for senior-level positioning.
-
-**Standard rate travel locations:** Note when destination returns CONUS standard rate (flat, no seasonal variation).
-
-**Partial-year periods:** Prorate hours and travel. Common: base year starts 3 months post-award = 9 months (1,410 hrs). Note proration in methodology.
-
-**Implied multiplier sanity check:** If the MID-scenario implied multiplier falls outside 2.2x-3.5x, flag for user review. Below 2.2x suggests unrealistically low overhead assumptions. Above 3.5x suggests SCIF/OCONUS/niche conditions that should be documented. The high-scenario naturally exceeds 3.5x - do NOT flag it.
+**Implied multiplier sanity check:** If the MID-scenario implied multiplier falls outside 2.2x-3.5x, flag for user review. Below 2.2x suggests unrealistically low overhead. Above 3.5x suggests SCIF/OCONUS/niche conditions requiring documentation. The high-scenario naturally exceeds 3.5x; do NOT flag it.
 
 **Silent-wrong-answer traps (workbook-level):**
 - **Text starting with `=`, `+`, `-`, or `@` in ANY cell** is parsed as a formula by Excel. This applies to Methodology prose, labels, and source citations, not just Sheet 2 annotations. Prefix with a space or lead with a non-operator character.
@@ -843,29 +841,13 @@ Include as placeholder rows or methodology notes:
 
 ## Quick Start Examples
 
-**Basic FFP:** "Build an FFP IGCE for a 3-person dev team in DC, base plus 2 OYs"
-Claude will: map to SOC codes, pull DC BLS wages, build layered wrap rates at low/mid/high, validate against CALC+, apply 2.5% escalation, produce 7-sheet xlsx.
+**Basic FFP:** "Build an FFP IGCE for a 3-person dev team in DC, base plus 2 OYs" → map SOC codes, pull DC BLS wages, build layered wrap rates at low/mid/high, validate against CALC+, apply 2.5% escalation, produce 7-sheet xlsx.
 
-**SOW-driven:** "Here's my PWS, I need an FFP cost estimate" [user uploads PWS]
-Claude will: run Step 0 decomposition, PAUSE at validation gate for user confirmation, then full Workflow A with FFP buildup.
+**SOW-driven:** "Here's my PWS, I need an FFP cost estimate" → run Step 0 decomposition, PAUSE at validation gate, then full Workflow A with FFP buildup.
 
-**With travel:** "FFP IGCE for 5-person IT team in DC, monthly travel to Seattle, base plus 4 OYs"
-Claude will: ask for labor breakdown, run Steps 1-9 including City Pair lookup for DCA-SEA.
+**Rate validation:** "Vendor proposes $185/hr for a Software Dev, FFP contract. Reasonable?" → Workflow B. Dual-pool CALC+ analysis, position within both pools, produce validation summary (no determination).
 
-**Rate validation:** "Vendor proposes $185/hr for a Software Dev, FFP contract. Reasonable?"
-Claude will: Workflow B. Dual-pool CALC+ analysis (title-match vs experience-match), position $185 within both, produce validation summary.
-
-**Multi-location (explicit headcount):** "FFP IGCE for 4 FTE at Fort Meade, 3 FTE at Colorado Springs, quarterly travel COS to BWI"
-Claude will: use Option C (separate lines per location) without prompting, pull BLS for both metros, calculate travel, produce combined workbook.
-
-**Custom rates (cleared/SCIF):** "Use 35% fringe, 95% overhead, 15% G&A, 12% profit for a cleared environment"
-Claude will: apply custom rates as MID scenario (not as a variant), set low = mid minus 20% offset, high = mid plus 20% offset, note cleared environment justification in methodology.
-
-**24x7 coverage:** "SOC analyst coverage 24x7x365, Cleveland, base plus 2 OYs"
-Claude will: compute 4.2 FTE single-seat per Step 0.5, pull BLS Cleveland via the MCP (current MSA code), build workbook.
-
-**FFP by deliverable:** "18-month feasibility study, 4 milestones at 15/30/25/30 scope weight, Oak Ridge TN"
-Claude will: ask whether uniform / per-LCAT matrix / staffing-profile allocation, age wages once to contract start (no mid-contract escalation on single-period PoP), produce by-deliverable workbook with Summary columns = CLINs.
+**FFP by deliverable:** "18-month feasibility study, 4 milestones at 15/30/25/30 scope weight, Oak Ridge TN" → ask allocation method, age wages once to contract start, produce by-deliverable workbook with Summary columns = CLINs.
 
 ---
 

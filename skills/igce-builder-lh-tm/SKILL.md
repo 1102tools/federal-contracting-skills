@@ -26,19 +26,52 @@ This skill produces Independent Government Cost Estimates for Labor Hour and Tim
 
 **LH vs. T&M:** The only structural difference is materials. LH contracts pay hourly rates for labor only. T&M contracts pay hourly rates for labor plus reimburse materials at cost (FAR 16.601(b)). Both use the same burden multiplier for the labor component. If the user says "IGCE" without specifying a contract type, default to LH unless they mention materials, supplies, licenses, cloud hosting, or similar non-labor costs, in which case default to T&M.
 
-**Required L1 skills (must be installed):**
-1. **BLS OEWS API** -- market wage data by occupation and geography
-2. **GSA CALC+ Ceiling Rates API** -- awarded GSA MAS schedule hourly rates
-3. **GSA Per Diem Rates API** -- federal travel lodging and M&IE rates
-
-**Required API keys (must be in user memory):**
-- BLS API key (v2) for BLS OEWS
-- api.data.gov key for GSA Per Diem
-- CALC+ requires no key
-
-If a key is missing, prompt the user to register: BLS at https://data.bls.gov/registrationEngine/, api.data.gov at https://api.data.gov/signup/
+**Required MCP servers:**
+1. **bls-oews** -- market wage data by occupation and geography. Key tools: `get_wage_data`, `igce_wage_benchmark`, `list_common_metros`, `list_common_soc_codes`.
+2. **gsa-calc** -- awarded GSA MAS ceiling hourly rates. Key tools: `suggest_contains`, `exact_search`, `keyword_search`, `igce_benchmark`, `price_reasonableness_check`.
+3. **gsa-perdiem** -- federal CONUS travel lodging and M&IE. Key tools: `lookup_city_perdiem`, `estimate_travel_cost`, `get_mie_breakdown`.
 
 **Regulatory basis:** FAR 15.402 (cost/pricing data). FAR 15.404-1(b) (price analysis). FAR 16.601 (T&M/LH contracts and limited-use criteria).
+
+## Operating Principle (ai-boundaries)
+
+This skill **assembles data** and **formats documents** from reasoning the contracting officer supplies. It does NOT originate evaluative conclusions. Specifically:
+
+- The skill pulls BLS wages, CALC+ ceiling rates, and Per Diem rates, and formats them into a workbook.
+- The skill does NOT determine whether a rate is "fair and reasonable" under FAR 15.404-1. That determination is the CO's.
+- The skill does NOT assert premiums (TS/SCI, OCONUS, SCIF, specialty labor) that are outside BLS/CALC+/Per Diem data. If a premium is needed and the data does not support it, the skill names the gap and hands the decision back to the CO.
+- The skill does NOT draft a price reasonableness memo, a responsibility determination, or any FAR-citing signature document unless the CO has already supplied the rationale and conclusion, in which case the skill formats the CO's text into the template.
+- Narrative prose (chat summaries, Methodology sheet, Rate Validation status) avoids evaluative verbs: "defensible," "reasonable," "acceptable," "competitive," "outlier." Replace with neutral positioning: "at P77 of CALC+ pool (n=X)," "within BLS P90 burdened equivalent," "above P50 by Y%, document stacked factors in Methodology."
+
+If you find yourself writing a conclusion about whether a number is right or wrong, stop. Present the data and let the CO conclude.
+
+## Pre-flight: MCP dependency check
+
+**Runs before Workflow Selection. Required on every skill trigger.**
+
+This skill needs three MCP servers: `bls-oews`, `gsa-calc`, `gsa-perdiem`. Do not proceed to any workflow until both checks below pass.
+
+**Check 1: MCP presence.** Verify all three are available in the current session by looking for one known tool from each:
+
+- `bls-oews` (check for `mcp__bls-oews__detect_latest_year`)
+- `gsa-calc` (check for `mcp__gsa-calc__suggest_contains`)
+- `gsa-perdiem` (check for `mcp__gsa-perdiem__get_mie_breakdown`)
+
+If any are missing, respond with:
+
+> This skill requires the `bls-oews`, `gsa-calc`, and `gsa-perdiem` MCP servers. Missing: [list]. Install and configure them in your MCP client before using this skill.
+
+**Check 2: API key presence.** Two of the three need API keys. Verify by lightweight ping:
+
+- `mcp__bls-oews__detect_latest_year` (needs a BLS API key)
+- `mcp__gsa-perdiem__get_mie_breakdown` (needs an api.data.gov key)
+- `gsa-calc` needs no key, skip
+
+If either ping returns an auth error or missing-key error, respond with:
+
+> [bls-oews | gsa-perdiem] is installed but its API key is not set. This MCP needs a free API key (BLS for `bls-oews`, api.data.gov for `gsa-perdiem`). Register the key with the provider and add it to the MCP's configuration, then restart your MCP client.
+
+Only proceed to Workflow Selection after both checks pass. Do not try to work around missing MCPs by calling APIs directly; the skill relies on MCP-guaranteed behaviors (MSA renumbering lookups, JSON path normalization, first/last day M&IE math).
 
 ## Workflow Selection
 
@@ -54,16 +87,59 @@ Triggers: "T&M IGCE," "time and materials estimate," or when user mentions mater
 User provides a requirement document instead of structured labor inputs. Execute Step 0 first, validate, then route to A-LH or A-TM based on whether materials are needed.
 Triggers: "build an IGCE from this SOW," "price this statement of work," or when user provides a block of requirement text.
 
-### Workflow B: Rate Validation Only
-User has proposed rates and wants to check reasonableness against market data.
+### Workflow B: LH/T&M Rate Positioning (Data Only, No Determination)
+
+User has proposed rates and wants to see where they sit against market data. The skill returns the data and the CO decides reasonableness. **The skill does not produce a "fair and reasonable" determination, a signed memo, or advisory text telling the CO how to negotiate.**
+
 Triggers: "is this rate reasonable," "validate these rates," "compare vendor pricing," "check this proposal."
 
-**Workflow B steps:**
-1. Collect the vendor's proposed labor categories and hourly rates.
-2. For each category, query CALC+ per Step 4.
-3. Position each rate: below 25th percentile (aggressive), 25th-75th (competitive), above 75th (premium), above 90th (outlier requiring justification).
-4. Optionally run Steps 1-3 to show where the rate falls relative to BLS wages at different burden multiplier assumptions.
-5. Produce Rate Validation sheet and narrative. No full workbook unless requested.
+**Step 0 / GATE (MANDATORY FIRST — runs before any other Workflow B step).**
+
+Before any analysis, scan the user's prompt for these tokens (case-insensitive): "memo", "determination", "fair and reasonable", "price reasonableness", "reasonableness memo", "draft the memo", "for the file", "contract file", "document this", "memorandum".
+
+If ANY of those tokens appear, the ENTIRE first response must be the refusal template below, emitted verbatim. No rate analysis. No CALC+ pull. No BLS pull. No "let me start with the analysis" preamble. No offer to continue with the memo if the user provides more info in the same response. Emit the template. Stop. Wait for the user's explicit choice.
+
+**Refusal template (emit verbatim):**
+
+> I can pull positioning data that shows where each proposed rate sits against CALC+ ceiling rates and BLS market wages. I cannot draft a price reasonableness memo, write a "fair and reasonable" determination, or recommend negotiation positions. Those are Contracting Officer decisions under FAR 15.404-1, not skill outputs.
+>
+> Tell me which you want:
+>
+> **Option A — Positioning data only.** I produce a table: per-LCAT proposed rate, CALC+ P25/P50/P75/P90 with sample size, BLS metro burdened equivalent. No verdict. No recommendation. You draw the conclusion.
+>
+> **Option B — Memo template fill.** You provide your rationale (what supports or doesn't support each rate) and your determination (fair and reasonable / not fair and reasonable / declining to determine). I drop your text verbatim into the memo template, add the benchmark tables underneath, mark it DRAFT. I will not originate determinations, recommend negotiation positions, or add hedging language.
+>
+> Which option?
+
+**Proceed to Steps 1-5 only after:**
+- User explicitly selects Option A, OR
+- User provides Option B inputs (rationale text + determination text)
+
+**Hard prohibitions at ALL times (Option A or Option B):**
+- Do NOT write "the rate is fair and reasonable" or "not fair and reasonable" unless quoting the user's Option B text verbatim.
+- Do NOT label rates "competitive," "aggressive," "outlier requiring justification," "premium warrants clarification," or any equivalent evaluative phrase. Use positional language only ("at P77," "above P50 by X%," "below P25").
+- Do NOT recommend negotiation positions, evaluation notices, or counter-offer dollar figures.
+- Do NOT write "Summary of findings" or "Determination" sections that draw conclusions the user has not supplied.
+
+**Workflow B steps (run only after Step 0 gate clears):**
+
+1. Collect the vendor's proposed labor categories, hourly rates, and any scope context (metro, clearance, experience tier).
+
+2. For each LCAT, call `mcp__gsa-calc__price_reasonableness_check(labor_category, proposed_rate, experience_min, education_level)`. The MCP returns count, min/max, median, IQR bounds, z-score, and percentile position. If sample size is below ~25 records, label the pool "directional only, not statistical validation."
+
+3. For senior LCATs, also run the dual-pool flow (title-match + experience-match) and present both medians side-by-side.
+
+4. If metro context matters (DC, SF, NYC, Boston, etc.), pull BLS OEWS for that metro via `mcp__bls-oews__get_wage_data` and present the P50/P75/P90 burdened equivalent at the relevant multiplier. This shows how the rate sits against local market labor independent of the CALC+ nationwide pool.
+
+5. **Present a neutral positioning summary** using non-evaluative language:
+   - "Rate sits at CALC+ P77 (n=7, thin-corpus directional only)."
+   - "Above P50 by X%; stacked factors: [metro, seniority tier, aging, burden assumption]."
+   - "Below P25; pool composition or LCAT alignment may warrant CO review."
+   - "Premium factors not captured by this data: [TS/SCI clearance premium, SCIF overhead, specialty market]. CO sets the relevant premium band if one applies."
+
+6. **Stop.** Do not write "the rate is fair and reasonable." Do not recommend negotiation positions. Do not suggest "push back only if..." text. Do not label rates "competitive," "aggressive," "outlier requiring justification."
+
+7. **Memo output (Option B path only).** If the user selected Option B at the Step 0 gate and supplied rationale + determination text, fill the memo template: benchmark tables from Steps 2-4, the user's rationale text verbatim in the findings section, the user's determination text verbatim in the Determination section. Do NOT paraphrase, do NOT add hedging, do NOT originate any conclusion text. Mark DRAFT. Use `[Contracting Officer Name]` and `[Agency]` placeholders. If Option A was selected, skip this step entirely.
 
 ## Information to Collect
 
@@ -121,21 +197,7 @@ The vehicle collected in Required Inputs is NOT metadata only. It tunes the burd
 | DoE M&O contract | 2.2 | 2.4 | 2.6 | M&O overhead structure |
 | OCONUS | 2.6 | 2.9 | 3.2 | Hardship, foreign deployment |
 
-If the user provides a vehicle not in the table, default to GSA MAS commercial and flag the assumption in methodology.
-
-### Burden Multiplier Guidance
-
-The burden multiplier converts BLS base wages to fully burdened rates (fringe + overhead + G&A + profit in one factor). Provide this when the user is unsure:
-
-| Range | Typical Scenario |
-|-------|-----------------|
-| 1.5x - 1.7x | Lean contractor, minimal overhead, commercial-style work |
-| 1.8x - 2.0x | Mid-range professional services, most IT contracts |
-| 2.0x - 2.2x | Large contractor with compliance overhead |
-| 2.2x - 2.5x | Cleared work, SCIF environments, high-overhead settings |
-| 2.5x - 3.0x | Deployed, OCONUS, or specialized niche environments |
-
-If user does not specify, use 2.0x as mid and produce low (1.8x) and high (2.2x) scenarios. If user provides a custom multiplier (e.g., 2.3x for cleared work), set low = custom - 0.2, high = custom + 0.2.
+If the user provides a vehicle not in the table, default to GSA MAS commercial and flag the assumption in methodology. If the user provides a custom burden multiplier, use it as mid and set low = custom - 0.2, high = custom + 0.2. **DoD-cleared work: pick the Secret row (2.0/2.2/2.4) unless the requirement specifies TS/SCI or SCIF, in which case use the SCIF-only row (2.4/2.6/3.0).**
 
 ## Constants Reference
 
@@ -180,7 +242,13 @@ Security Operations     | InfoSec Analyst     | 15-1212  | 1-2       | Continuou
 Project Oversight       | Project Manager     | 13-1082  | 1         | Single contract
 ```
 
-7. **User validation gate.** Confirm before proceeding. Also determine LH vs. T&M: "Does this requirement include materials the contractor will procure (software licenses, cloud hosting, hardware)? If yes, I'll build a T&M IGCE with materials. If labor only, I'll build LH."
+7. **User validation gate (CRITICAL) - two stages, not one.** Stage A/B gate applies to Workflow A+ (SOW-driven builds). Skip for Workflow A-LH/A-TM (FFP, CR) when the user provides structured inputs (LCATs, FTE, location, PoP) — those don't need decomposition validation, go straight to build parameters if anything is missing. Do not conflate "confirm the decomposition" with "pick build parameters." Run them separately:
+
+   **Stage A - Decomposition validation.** After presenting the decomposition table, ask the user to confirm or amend it. Use `AskUserQuestion` with options like "Decomposition looks right, proceed" / "Modify LCAT X" / "Add LCAT Y" / "Adjust FTE estimates." Response MUST END after this question. Wait for explicit confirmation before continuing.
+
+   **Stage B - Build parameters.** Only after the decomposition is confirmed, ask the remaining parameter questions in a separate `AskUserQuestion` call: LH vs. T&M ("Does this requirement include materials the contractor will procure (software licenses, cloud hosting, hardware)? If yes, I'll build a T&M IGCE with materials. If labor only, I'll build LH."), vehicle preset, metro confirmation, contract start, shift coverage density if 24x7. Response MUST END after this question.
+
+   DO NOT self-approve either stage. DO NOT skip Stage A to go straight to parameters. Proceeding to Step 1+ before Stage B is also answered is a skill violation. The user must affirmatively validate BOTH the decomposition and the parameters before build work begins.
 
 ### Step 0.5: Shift Coverage Staffing (If 24x7 or Multi-Shift)
 
@@ -245,36 +313,29 @@ Map user job titles to SOC codes. Apply domain triage from Step 0 first.
 | Petroleum Engineer | 17-2171 | Petroleum Engineers |
 | Engineers, All Other (catch-all) | 17-2199 | Engineers, All Other |
 
-When mapping is ambiguous, query multiple SOC codes and present the range. PM mapping is context-dependent: do NOT default to 11-3021 for non-IT programs.
+When mapping is ambiguous, query multiple SOC codes and present the range.
 
-**PM mapping decision rule (addresses the -21% CALC+ divergence trap on 15-1299):**
+**PM SOC decision.** Pick by what the PM actually manages:
 
-| Context | Default SOC | Why |
-|---------|-------------|-----|
-| IT task order PM at DoD/IC installation | 11-3021 Computer and Information Systems Managers | Matches the IT PM labor pool in CALC+; validates within ±5% |
-| IT task order PM at civilian agency | Pull BOTH 11-3021 and 13-1082; pick the one with <15% CALC+ divergence | Civilian agency mix varies |
-| Physical engineering PM / hardware program | 11-9041 Architectural and Engineering Managers | DoE M&O, hardware programs, aerospace |
-| Non-IT operations PM | 11-1021 General and Operations Managers | Ops / logistics / services |
-| Technical-but-not-IT PM at DoD | 13-1082 Project Management Specialists | Specialty services, not tech-stack focused |
+| PM manages... | Default SOC |
+|---|---|
+| IT infrastructure / platform / software systems | 11-3021 Computer and Information Systems Managers |
+| Services team (cyber/IR/SOC, managed services, analytics, specialty) | 13-1082 Project Management Specialists |
+| Physical engineering / hardware / lab | 11-9041 Architectural and Engineering Managers |
+| Non-IT operations (logistics, admin) | 11-1021 General and Operations Managers |
 
-Do NOT default to 15-1299 (Computer Occupations, All Other) for IT PM. It under-represents DoD IT PM wages by ~20% vs CALC+.
+Do NOT default to 15-1299 (Computer Occupations, All Other) for IT PM — under-represents DoD IT PM wages by ~20% vs CALC+.
 
-**Network Engineer SOC disambiguation:**
+**Network Engineer:** default 15-1241 (Computer Network Architects) for design/architecture scope; use 15-1244 (Network and Computer Systems Administrators) when PWS scope is operations/NOC sysadmin.
 
-| Title / Scope | SOC | Note |
-|---|---|---|
-| Network Engineer (design / architecture / enterprise redesign) | 15-1241 Computer Network Architects | Default; higher wage (~25% above sysadmin) |
-| Network Engineer (ops / sysadmin / NOC tier 2-3) | 15-1244 Network and Computer Systems Administrators | Use when PWS scope is operations-heavy |
+**Seniority default (no tier label):** P50 (median). Exceptions:
+- Cleared-contract PM → P75 (cleared PM pool skews senior; P50 understates)
+- Small cleared team (<5 FTE total) → temper PM to P60-P70, not full P75
+- "Tech Lead," "Principal," "Chief" → P90
 
-Default to 15-1241 (conservative) unless the PWS specifies operations/sysadmin scope. Document the choice and the alternative in the Raw Data sheet.
+Document percentile choice in methodology.
 
-**Seniority inference when no tier label:** The user may provide a role title without an explicit "Junior/Mid/Senior" qualifier (e.g., "Project Manager," "Cybersecurity Engineer"). Default to P50 (median). Exception: **when the role is a PM on a technical or cleared contract (DoD, IC, cyber), default to P75.** The cleared-contract PM pool skews senior; P50 understates. Cite the basis in methodology.
-
-**Divergence-triggered SOC re-pick (automate what manual analysis does):**
-
-If an LCAT's BLS burdened rate shows >15% divergence vs CALC+ median AND the SOC was a judgment call (not user-specified), automatically pull alternative SOCs per the decision rules above, compute divergence for each, and pick the one that validates within ±15%. Retain all queried SOCs (including rejected alternatives) in the Raw Data sheet for defensibility; document the winner and the losers in Methodology.
-
-**Raw Data sheet retention requirement:** The Raw Data sheet MUST include every SOC queried, including rejected alternatives. Example: if you initially pulled 15-1299 for IT PM, got -21% divergence, and switched to 11-3021, the Raw Data sheet shows BOTH series ID queries with the returned wages, not just the winner. This is audit-defensibility material.
+**Divergence-triggered SOC re-pick.** If an LCAT's BLS burdened rate diverges >15% vs CALC+ median AND the SOC was a judgment call, pull alternative SOCs, pick the one validating within ±15%. If both candidates exceed 15%, pick smaller absolute divergence and label "cite range, dual-pull blended" in methodology. Retain every queried SOC (winners and rejected alternatives) in the Raw Data sheet with wages and divergence so the decision is reproducible.
 
 ### Step 2: Pull BLS Wage Data
 
@@ -344,7 +405,9 @@ Note: 2,080 converts annual to hourly. Productive hours (1,880) are used separat
 
 **IGCE use case for CALC+:** directional sanity-layer validation of BLS-burdened rates against GSA MAS awarded ceiling pool. `keyword=` is acceptable here per the CALC+ skill (sanity layer, not formal rate statistics). Full endpoint base URL, response envelope shape, and corpus skew guidance all live in the CALC+ skill.
 
-**Fetch aggregations only:** `page_size=0` (aggregations compute over the full result set regardless of page_size).
+**Fetch aggregations only:** `page_size=0` (aggregations compute over the full result set regardless of page_size). When you only need pool stats (count, min/max, percentiles) for validation, call `mcp__gsa-calc__igce_benchmark` instead of `keyword_search` — igce_benchmark returns trimmed stats without the 50KB+ labor_category/current_price aggregation buckets that blow up response size.
+
+Match the vendor's tier in the keyword, not the aggregate title. For 'Mid Software Developer' query `Software Developer II` not `Software Developer` — the aggregate pool mixes interns through Senior levels and can falsely flag rates as +70% divergent when the tier-matched pool is +11%.
 
 Example call pattern (resolve actual base URL from the CALC+ skill at invocation time):
 ```
@@ -387,6 +450,28 @@ Divergence formula: `((bls_burdened - calc_median) / calc_median) * 100`. Diverg
 
 **Use the GSA Per Diem Rates API skill.** Query monthly lodging rates and M&IE for each destination.
 
+**DoD installation → GSA per diem city crosswalk.** GSA keys per diem by civilian locality, not by military installation. Looking up "Fort Meade" or "Pentagon" directly returns empty. Translate the installation to its GSA locality BEFORE calling the MCP:
+
+| DoD installation | GSA locality | Metro |
+|---|---|---|
+| Fort Meade, MD | Annapolis / Anne Arundel County, MD | Baltimore |
+| Fort Belvoir, VA | Fairfax / Alexandria, VA | DC |
+| Pentagon, VA | Arlington, VA (use DC rate) | DC |
+| Joint Base Andrews, MD | District of Columbia | DC |
+| NSA Bethesda / Walter Reed, MD | District of Columbia (composite) | DC |
+| Fort Liberty (Bragg), NC | Fayetteville, NC | Fayetteville |
+| Peterson SFB / Schriever SFB / Fort Carson, CO | Colorado Springs, CO | Colorado Springs |
+| Wright-Patterson AFB, OH | Dayton, OH | Dayton |
+| Eglin AFB, FL | Fort Walton Beach, FL | Pensacola-Crestview |
+| JB San Antonio / Randolph / Lackland, TX | San Antonio, TX | San Antonio |
+| Hanscom AFB, MA | Bedford / Boston, MA | Boston |
+| Redstone Arsenal, AL | Huntsville, AL | Huntsville |
+| Offutt AFB, NE | Omaha / Bellevue, NE | Omaha |
+| Cape Canaveral / Patrick SFB, FL | Cocoa Beach / Cape Canaveral, FL | Palm Bay-Melbourne |
+| JB Lewis-McChord, WA | Tacoma / Pierce County, WA | Seattle-Tacoma |
+
+If the installation is not on this list, query `mcp__gsa-perdiem__lookup_city_perdiem` with the nearest civilian city and cross-check the result's `county` field.
+
 **City Pair airfare (optional):** When origin and destination are known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
 **Per-trip cost by trip length:**
@@ -420,6 +505,8 @@ annual_travel = trip_total * trips_per_year * travelers
 ```
 
 Use max monthly lodging rate as conservative ceiling if specific months not provided.
+
+If the contract PoP start is within 6 months of the next federal fiscal year, query both FYs; if the target FY is not yet published (FY{N+1} publishes mid-August {N}), use current FY as conservative baseline and note in methodology: 'refresh on FY{N+1} publication.'
 
 **No travel case:** If user confirms zero travel, do NOT build Sheet 4 with placeholder zeros that break SUM formulas. Use a minimal sheet with text "Travel Not Applicable" and no cell references. Sheet 1 Travel row = 0 literal.
 
@@ -568,7 +655,17 @@ Row 4+: one row per category
 
 Dual-pool columns when title-match N<10: add "Pool A (Title)" and "Pool B (Experience)" median columns, cite N for each.
 
-**Sheet 4: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only):
+**Sheet 4: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only).
+
+**Multi-destination parameterization.** For M destinations, block N starts at row `1 + (N-1) * 17` with a 16-row content layout and 1-row separator. In-block row indices shift by `(N-1) * 17`. Do NOT hard-code one city: if the user provides "2 trips/yr to Huntsville + 4 trips/yr to San Diego," build two blocks with distinct labeled headers ("Travel Cost Detail: Huntsville, AL" and "Travel Cost Detail: San Diego, CA") and have Sheet 1 Travel rows SUM across destinations:
+
+```
+Annual travel (Sheet 1) = SUM across destinations of annual_travel_cost cell
+                        = SUM('Travel Detail'!$B$14, 'Travel Detail'!$B$31, ...)
+```
+
+Single-destination single-block layout (block 1, rows 1-14):
+
 ```
 Row 1: "Travel Cost Detail: [Destination]"  (bold header)
 Row 3: A="Fiscal Year"           B=<current federal FY>          (blue)
@@ -620,7 +717,7 @@ Row 14: A="Annual Travel Cost"   B==B11*B12*B13                  (formula, bold)
 
 **Labor Category Ceiling Hours requirement (LH and T&M per FAR 16.601(c)(2)):** Sheet 1 labor table already shows hours per LCAT. Methodology should annotate: "Labor Category Ceiling Hours presented per FAR 16.601(c)(2); contract ceiling hours per LCAT are binding NTE limits for solicitation purposes."
 
-**Sheet 6: Raw Data.** All API query parameters and responses: BLS series IDs, CALC+ keyword + endpoint + record counts, per diem query details, City Pair fares if retrieved.
+**Sheet 6: Raw Data.** All API query parameters and responses: BLS series IDs, CALC+ keyword + endpoint + record counts, per diem query details, City Pair fares if retrieved. Record summary tables (count, percentiles, series IDs, query parameters) — NOT raw JSON dumps. A reviewer should reproduce the query from the parameters, not wade through 50KB of aggregation buckets.
 
 **Sheet 7: Materials Detail (T&M only).** One row per materials category with annual cost, escalation across periods, and subtotals. Blue font on all cost inputs. Note that materials are at cost, no burden applied. Use numeric 0 for unknown amounts (not text "TBD").
 
@@ -638,97 +735,65 @@ When base year is partial, prorate: `=burdened_rate*$B$6*($B$7/12)*headcount`. T
 
 Never output as .md or HTML unless explicitly requested.
 
-### Step 8.5: Post-Recalc Sanity Gates (REQUIRED before presenting)
+### Step 8.5: Post-Build Sanity (REQUIRED before presenting)
 
-`recalc.py` returning zero formula errors is necessary but NOT sufficient. Syntactically valid formulas can reference the wrong cells and produce wildly wrong values. Run ALL three of these checks before calling `present_files`. If any fails, fix and re-run all three.
+`recalc.py` returning zero formula errors is necessary but NOT sufficient. Syntactically valid formulas can reference the wrong cells and produce wildly wrong values. Run ALL three gates below before calling `present_files`.
 
 **Gate 1: Per-FTE annualized cost in defensible range.**
 
-Pick the first LCAT in the workbook. Compute its base-year cost divided by its FTE count. The result MUST fall in `[100,000, 1,000,000]` dollars. Outside this range, the formulas are almost certainly referencing wrong cells.
+Pick the first LCAT. Compute its base-year cost divided by FTE count. Must fall in `[100,000, 1,000,000]`. Outside that range, formulas are referencing wrong cells.
 
 ```python
 from openpyxl import load_workbook
-wb = load_workbook(workbook_path, data_only=True)  # data_only=True reads cached formula values post-recalc
+wb = load_workbook(workbook_path, data_only=True)
 summary = wb["IGCE Summary"]
-# Find the first LCAT row (below assumption block; check your actual row numbers)
-first_lcat_fte = summary["C14"].value    # adjust to your LCAT column/row
-first_lcat_base_cost = summary["F14"].value
+# Adjust column letters to your actual Sheet 1 layout — FTE column and base-year total column
+first_lcat_fte = summary["F14"].value   # qty column
+first_lcat_base_cost = summary["H14"].value  # base-year total
 per_fte = first_lcat_base_cost / first_lcat_fte if first_lcat_fte else 0
-assert 100_000 <= per_fte <= 1_000_000, f"Per-FTE ${per_fte:,.0f} outside defensible range; check cell references"
+assert 100_000 <= per_fte <= 1_000_000, f"Per-FTE ${per_fte:,.0f} outside defensible range"
 ```
 
-A failed gate means your Sheet 1 formulas are likely referencing the wrong assumption cells. Review the DOWNSTREAM CELL REFERENCES map above and re-check every $B$n reference.
+**Gate 2: Sheet 1 Grand Total == Sheet 2 Mid-Scenario Grand Total** within $0.01. Divergence = sheets pulling from different assumption cells.
 
-**Gate 2: Sheet 1 Grand Total == Sheet 2 Mid-Scenario Grand Total.**
+**Gate 3: Burden multiplier cell on Sheet 2 equals `$B$3` on Sheet 1.** Block 1 mid-burden display is at `B9` on Sheet 2 (row +9 = Burdened Mid per block offset), NOT `B6` (Burdened Low). Compare `wb["Scenario Analysis"]["B9"].value` to `wb["IGCE Summary"]["B3"].value` within 0.001.
 
-Sheet 1's grand total and Sheet 2's mid-scenario grand total must match within $0.01. Divergence indicates the sheets are pulling from different assumption cells.
+**Environment-specific recalc handling:**
+- **claude.ai web chat:** rerun `python /mnt/skills/public/xlsx/scripts/recalc.py <file>`.
+- **Claude Code CLI (no LibreOffice):** the recalc script is unavailable. Compute the expected grand total in Python across base + option years:
 
 ```python
-sheet1_total = wb["IGCE Summary"]["F30"].value   # adjust to your grand total cell
-sheet2_total = wb["Scenario Analysis"]["F15"].value  # adjust to mid-scenario total cell
-assert abs(sheet1_total - sheet2_total) < 0.01, f"Sheet 1 ({sheet1_total}) != Sheet 2 Mid ({sheet2_total})"
+expected = 0
+for lcat in lcats:
+    base_year = lcat.burdened_mid * productive_hours * lcat.fte * (base_months / 12)
+    expected += base_year
+    for oy_index in range(1, num_oys + 1):
+        expected += base_year * (1 + escalation_rate) ** oy_index
 ```
 
-**Gate 3: Burden multiplier at the top of Sheet 2 equals $B$3 on Sheet 1.**
+Verify the workbook grand total lands within 1% of `expected`. If not, aging-factor cross-reference or block-indexing shift is likely the cause.
 
-```python
-sheet2_mid_burden = wb["Scenario Analysis"]["B6"].value  # mid column burden row
-sheet1_mid_burden = wb["IGCE Summary"]["B3"].value
-assert abs(sheet2_mid_burden - sheet1_mid_burden) < 0.001, "Burden multiplier drift between sheets"
-```
+- **macOS Claude Desktop with Numbers:** Numbers auto-recalculates on file open; no script needed.
 
-Only after all three pass, copy to outputs and call `present_files`.
-
-### Step 8.6: Pre-Delivery Sanity Checklist (walk through before calling present_files)
-
-Run this checklist mentally or in writing before delivering. Any "no" means stop and fix.
-
-- [ ] **Skill triggered and announced.** First line of response acknowledges the LH/T&M skill was loaded. User can see which skill is running.
-- [ ] **Cell references match the DOWNSTREAM CELL REFERENCES map.** No drift between prose and layout.
-- [ ] **Per-FTE sanity gate passed.** First LCAT base-year cost / FTE is between $100K and $1M.
-- [ ] **Sheet 1 total == Sheet 2 mid total** within $0.01.
-- [ ] **Aging factor is a cell-referenced formula**, not a hardcoded multiplier.
-- [ ] **Escalation not double-counted.** Option years apply escalation from base; base year does NOT also apply escalation.
-- [ ] **Placeholder rows use numeric 0**, not text "TBD". SUM formulas intact.
-- [ ] **Per diem FY matches contract start** (or fallback documented if target FY not yet published).
-- [ ] **Travel math respects FTR 301-11.101** 75% first/last day M&IE rule; 0-night day trips use single-partial-day M&IE.
-- [ ] **CALC+ divergence >15% items are justified** in Methodology (corpus mismatch, thin pool, etc.) or the SOC was re-picked.
-- [ ] **Raw Data sheet includes rejected SOC alternatives** when a re-pick happened.
-- [ ] **FAR citations present**: 16.601 (always), 16.601(b)(2) (T&M materials), 16.601(c)(2) (LCAT ceiling hours), 16.601(c)(3) (T&M surveillance), 31.205-46 (if travel).
-- [ ] **Burden multiplier range matches contract vehicle** per the Contract Vehicle Usage Rule table.
-- [ ] **Staffing handoff used as-is.** FTE counts and productive hours match the user-provided values.
-- [ ] **Contract type labeled clearly** on Cover / Sheet 1 (LH vs T&M).
-
-Only after all green, proceed to Step 9.
+**Pre-delivery critical checks (all must pass):**
+- Cell references match the DOWNSTREAM CELL REFERENCES map (no drift between prose and layout)
+- Aging factor is a cell-referenced formula, not a hardcoded multiplier
+- Escalation not double-counted (option years escalate from base; base year does NOT)
+- Placeholder rows use numeric 0, not text "TBD" — SUM formulas intact
+- Travel math respects FTR 301-11.101 (75% first/last day M&IE; 0-night day trips = single partial day)
+- FAR citations present: 16.601 (always), 16.601(b)(2) (T&M materials), 16.601(c)(2) (ceiling hours), 16.601(c)(3) (T&M surveillance), 31.205-46 (travel)
+- CALC+ divergence >15% items justified in Methodology or SOC re-picked; Raw Data includes rejected alternatives
 
 ### Step 9: Present the File
 
-After writing the workbook, copy to the outputs directory AND call `present_files` so the user sees a download link in the UI.
+**Environment-specific delivery:**
+- **claude.ai web chat:** copy to `/mnt/user-data/outputs/<name>.xlsx` and call `present_files([...])`.
+- **Claude Code CLI:** write to `$PWD` or user-supplied path. Print the absolute path. On macOS also run `open <path>`; on Linux `xdg-open <path>`; on Windows `start "" <path>`. Do NOT try `/mnt/user-data/outputs/` — does not exist outside claude.ai.
+- **macOS Claude Desktop with Numbers:** write path, run `open <path>`. Numbers auto-recalculates on open.
 
-```python
-import shutil
-shutil.copy(workbook_path, "/mnt/user-data/outputs/IGCE_LH_<project>.xlsx")
-# Then invoke the file-presentation tool
-present_files(["/mnt/user-data/outputs/IGCE_LH_<project>.xlsx"])
-```
-
-Do NOT skip this step. A workbook that exists in the sandbox but is not presented looks like a silent failure to the user.
+Do NOT skip delivery. A workbook in the sandbox that isn't surfaced looks like a silent failure.
 
 ## Edge Cases
-
-**Labor categories not in BLS:** Find closest SOC code(s), query candidates, present range, let user select, document rationale.
-
-**No CALC+ results:** Try broader keywords. If still nothing, note unavailable; estimate relies on BLS alone. Mark Status "No CALC+ data."
-
-**BLS wage at reporting cap:** Use $239,200/$115.00 as lower bound. Flag that burdened rate is a conservative floor.
-
-**Standard rate travel locations:** Note when destination returns CONUS standard rate (flat, no seasonal variation).
-
-**Partial-year periods:** Prorate hours, travel, and materials. Example: base year starts 3 months post-award = 9 months (1,410 hrs).
-
-**Materials year-1 only items (T&M):** Hardware and initial setup costs often apply only to the base year. Do not escalate or repeat in option years unless the user specifies replacement cycles.
-
-**User provides their own rates:** Use Workflow B (Rate Validation Only).
 
 **Silent-wrong-answer traps:**
 - `q=` parameter on CALC+ returns the full 265K-record corpus silently. Always use `keyword=` or `search=`.
@@ -753,41 +818,13 @@ Include as placeholder rows or methodology notes:
 
 ## Quick Start Examples
 
-**Simple LH:** "Build an IGCE for a Systems Analyst in DC, base plus 2 option years"
-Claude will: map to SOC 15-1211, pull DC BLS wages with percentiles, age to contract start via cell-referenced formula, apply 1.8x/2.0x/2.2x burden, validate against CALC+ at `keyword=` endpoint, apply 2.5% escalation, produce 6-sheet xlsx and present.
+**Simple LH:** "Build an IGCE for a Systems Analyst in DC, base plus 2 option years" → map SOC 15-1211, pull DC BLS with percentiles, age via cell-referenced formula, apply 1.8x/2.0x/2.2x burden, validate against CALC+, 2.5% escalation, 6-sheet xlsx.
 
-**T&M:** "T&M IGCE for a 4-person dev team in DC, they'll need AWS hosting and JIRA licenses, base plus 3 OYs"
-Claude will: run full labor sequence plus Step 5B for materials, collect specifics, produce 7-sheet xlsx with materials separate from burden.
+**T&M with materials:** "T&M IGCE for a 4-person dev team in DC, AWS hosting + JIRA licenses, base plus 3 OYs" → run full labor sequence plus Step 5B for materials, 7-sheet xlsx with materials separate from burden.
 
-**SOW-driven:** "Here's my SOW, build me an IGCE" [user pastes or uploads SOW]
-Claude will: run Step 0 decomposition, domain triage, validate, determine LH vs. T&M based on materials need, then run appropriate workflow.
+**SOW-driven:** "Here's my SOW, build me an IGCE" → run Step 0 decomposition, domain triage, Stage A/B validation, determine LH vs T&M based on materials need, then run appropriate workflow.
 
-**With travel:** "IGCE for a 5-person IT team in DC with monthly travel to Seattle, base plus 4 OYs"
-Claude will: ask for labor breakdown, run Steps 1-9 including City Pair lookup for DCA-SEA.
-
-**Rate validation:** "Vendor proposes $165/hr for a Software Dev in DC. Reasonable?"
-Claude will: Workflow B. Pull CALC+ distribution via `keyword=`, position $165 against ±5 / ±15 / outside bands, optionally BLS context, produce validation summary.
-
-**Multi-location (explicit headcount):** "Price a 10-person help desk split 6 Baltimore / 4 Philadelphia, quarterly travel to DC"
-Claude will: use Option C (separate lines per location) without prompting, pull BLS for both metros, produce combined IGCE.
-
-**Partial year:** "IGCE for a contract starting April 1, base year is 6 months, then 4 full OYs"
-Claude will: prorate base to 6 months (940 hrs), full hours for OY1-4, note proration in methodology.
-
-**24x7 coverage:** "SOC analyst coverage 24x7x365, Cleveland, base plus 2 OYs"
-Claude will: compute 4.2 FTE single-seat per Step 0.5, pull BLS Cleveland (0017410 post-2023 OMB renumbering), build workbook.
-
-**Day trip travel:** "Quarterly day trips DCA to Pentagon, 5 travelers"
-Claude will: Step 5 0-night case (no lodging, single partial M&IE), Sheet 4 formulas handle nights=0 correctly.
-
-**Cleared environment:** "Use 2.4x burden for a cleared IT support contract in DC"
-Claude will: set mid=2.4x, low=2.2x, high=2.6x, note cleared justification in methodology.
-
-**Physical engineering (DOE):** "LH IGCE for 3 mechanical engineers + 1 PM at Oak Ridge, base + 2 OYs"
-Claude will: domain triage (DOE → 17-2xxx); map to 17-2141 Mechanical + 11-9041 Engineering Manager (NOT 11-3021 IT); pull Oak Ridge 28940; apply burden; validate with dual-pool CALC+; produce workbook.
-
-**No travel:** "LH IGCE for on-site-only help desk in DC, base + 2 OYs"
-Claude will: build labor workbook; Sheet 4 shows "Travel Not Applicable" text only; Travel row in Sheet 1 is literal 0; no SUM breakage.
+**24x7 coverage:** "SOC analyst coverage 24x7x365, Cleveland, base plus 2 OYs" → compute 4.2 FTE single-seat per Step 0.5, pull BLS Cleveland (0017410 post-2023 OMB renumbering), build workbook.
 
 
 ---

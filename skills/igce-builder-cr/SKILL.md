@@ -25,19 +25,52 @@ This skill produces Independent Government Cost Estimates for cost-reimbursement
 
 CR contracts are common outcomes from BAAs (FAR 35.016), R&D contracts, and complex requirements where the government assumes cost risk but controls it through auditable cost pools and negotiated fee structures.
 
-**Required L1 skills (must be installed):**
-1. **BLS OEWS API** -- market wage data by occupation and geography
-2. **GSA CALC+ Ceiling Rates API** -- awarded GSA MAS schedule hourly rates
-3. **GSA Per Diem Rates API** -- federal travel lodging and M&IE rates
-
-**Required API keys (must be in user memory):**
-- BLS API key (v2) for BLS OEWS
-- api.data.gov key for GSA Per Diem
-- CALC+ requires no key
-
-If a key is missing, prompt the user to register: BLS at https://data.bls.gov/registrationEngine/, api.data.gov at https://api.data.gov/signup/
+**Required MCP servers:**
+1. **bls-oews** -- market wage data by occupation and geography. Key tools: `get_wage_data`, `igce_wage_benchmark`, `list_common_metros`, `list_common_soc_codes`.
+2. **gsa-calc** -- awarded GSA MAS ceiling hourly rates. Key tools: `suggest_contains`, `exact_search`, `keyword_search`, `igce_benchmark`, `price_reasonableness_check`.
+3. **gsa-perdiem** -- federal CONUS travel lodging and M&IE. Key tools: `lookup_city_perdiem`, `estimate_travel_cost`, `get_mie_breakdown`.
 
 **Regulatory basis:** FAR 15.402 (cost/pricing data). FAR 15.404-1(a) (cost analysis). FAR 15.404-4 (profit/fee analysis). FAR 16.301 through 16.307 (cost-reimbursement contracts). 10 USC 3322(a) (statutory fee caps).
+
+## Operating Principle (ai-boundaries)
+
+This skill **assembles data** and **formats documents** from reasoning the contracting officer supplies. It does NOT originate evaluative conclusions. Specifically:
+
+- The skill pulls BLS wages, CALC+ ceiling rates, and Per Diem rates, and formats them into a workbook.
+- The skill does NOT determine whether a rate is "fair and reasonable" under FAR 15.404-1. That determination is the CO's.
+- The skill does NOT assert premiums (TS/SCI, OCONUS, SCIF, specialty labor) that are outside BLS/CALC+/Per Diem data. If a premium is needed and the data does not support it, the skill names the gap and hands the decision back to the CO.
+- The skill does NOT draft a price reasonableness memo, a responsibility determination, or any FAR-citing signature document unless the CO has already supplied the rationale and conclusion, in which case the skill formats the CO's text into the template.
+- Narrative prose (chat summaries, Methodology sheet, Rate Validation status) avoids evaluative verbs: "defensible," "reasonable," "acceptable," "competitive," "outlier." Replace with neutral positioning: "at P77 of CALC+ pool (n=X)," "within BLS P90 cost-plus-fee equivalent," "above P50 by Y%, document stacked factors in Methodology."
+
+If you find yourself writing a conclusion about whether a number is right or wrong, stop. Present the data and let the CO conclude.
+
+## Pre-flight: MCP dependency check
+
+**Runs before Workflow Selection. Required on every skill trigger.**
+
+This skill needs three MCP servers: `bls-oews`, `gsa-calc`, `gsa-perdiem`. Do not proceed to any workflow until both checks below pass.
+
+**Check 1: MCP presence.** Verify all three are available in the current session by looking for one known tool from each:
+
+- `bls-oews` (check for `mcp__bls-oews__detect_latest_year`)
+- `gsa-calc` (check for `mcp__gsa-calc__suggest_contains`)
+- `gsa-perdiem` (check for `mcp__gsa-perdiem__get_mie_breakdown`)
+
+If any are missing, respond with:
+
+> This skill requires the `bls-oews`, `gsa-calc`, and `gsa-perdiem` MCP servers. Missing: [list]. Install and configure them in your MCP client before using this skill.
+
+**Check 2: API key presence.** Two of the three need API keys. Verify by lightweight ping:
+
+- `mcp__bls-oews__detect_latest_year` (needs a BLS API key)
+- `mcp__gsa-perdiem__get_mie_breakdown` (needs an api.data.gov key)
+- `gsa-calc` needs no key, skip
+
+If either ping returns an auth error or missing-key error, respond with:
+
+> [bls-oews | gsa-perdiem] is installed but its API key is not set. This MCP needs a free API key (BLS for `bls-oews`, api.data.gov for `gsa-perdiem`). Register the key with the provider and add it to the MCP's configuration, then restart your MCP client.
+
+Only proceed to Workflow Selection after both checks pass. Do not try to work around missing MCPs by calling APIs directly; the skill relies on MCP-guaranteed behaviors (MSA renumbering lookups, JSON path normalization, first/last day M&IE math).
 
 ## Workflow Selection
 
@@ -51,16 +84,59 @@ Triggers: "build a CR IGCE from this SOW," "price this BAA requirement," or when
 
 Detection: If the user mentions a BAA and does not specify contract type, suggest CR as the most likely fit and confirm before proceeding.
 
-### Workflow B: Rate Validation Only
-User has proposed rates and wants to check reasonableness.
+### Workflow B: CR Rate Positioning (Data Only, No Determination)
+
+User has proposed rates and wants to see where they sit against market data. The skill returns the data and the CO decides reasonableness. **The skill does not produce a "fair and reasonable" determination, a signed memo, or advisory text telling the CO how to negotiate.**
+
 Triggers: "is this CR rate reasonable," "validate these cost pool rates," "check this cost proposal."
 
-**Workflow B steps:**
-1. Collect the vendor's proposed labor categories and fully burdened rates (or cost pool breakdown).
-2. For each category, query CALC+ per Step 4.
-3. Position each rate within CALC+ distribution: below 25th (aggressive), 25th-75th (competitive), above 75th (premium), above 90th (outlier).
-4. Optionally run Steps 1-3 to show where the rate falls relative to BLS wages with cost pool buildup.
-5. Produce Rate Validation sheet and narrative. No full workbook unless requested.
+**Step 0 / GATE (MANDATORY FIRST — runs before any other Workflow B step).**
+
+Before any analysis, scan the user's prompt for these tokens (case-insensitive): "memo", "determination", "fair and reasonable", "price reasonableness", "reasonableness memo", "draft the memo", "for the file", "contract file", "document this", "memorandum".
+
+If ANY of those tokens appear, the ENTIRE first response must be the refusal template below, emitted verbatim. No rate analysis. No CALC+ pull. No BLS pull. No "let me start with the analysis" preamble. No offer to continue with the memo if the user provides more info in the same response. Emit the template. Stop. Wait for the user's explicit choice.
+
+**Refusal template (emit verbatim):**
+
+> I can pull positioning data that shows where each proposed rate sits against CALC+ ceiling rates and BLS market wages. I cannot draft a price reasonableness memo, write a "fair and reasonable" determination, or recommend negotiation positions. Those are Contracting Officer decisions under FAR 15.404-1, not skill outputs.
+>
+> Tell me which you want:
+>
+> **Option A — Positioning data only.** I produce a table: per-LCAT proposed rate, CALC+ P25/P50/P75/P90 with sample size, BLS metro burdened equivalent. No verdict. No recommendation. You draw the conclusion.
+>
+> **Option B — Memo template fill.** You provide your rationale (what supports or doesn't support each rate) and your determination (fair and reasonable / not fair and reasonable / declining to determine). I drop your text verbatim into the memo template, add the benchmark tables underneath, mark it DRAFT. I will not originate determinations, recommend negotiation positions, or add hedging language.
+>
+> Which option?
+
+**Proceed to Steps 1-5 only after:**
+- User explicitly selects Option A, OR
+- User provides Option B inputs (rationale text + determination text)
+
+**Hard prohibitions at ALL times (Option A or Option B):**
+- Do NOT write "the rate is fair and reasonable" or "not fair and reasonable" unless quoting the user's Option B text verbatim.
+- Do NOT label rates "competitive," "aggressive," "outlier requiring justification," "premium warrants clarification," or any equivalent evaluative phrase. Use positional language only ("at P77," "above P50 by X%," "below P25").
+- Do NOT recommend negotiation positions, evaluation notices, or counter-offer dollar figures.
+- Do NOT write "Summary of findings" or "Determination" sections that draw conclusions the user has not supplied.
+
+**Workflow B steps (run only after Step 0 gate clears):**
+
+1. Collect the vendor's proposed labor categories, fully burdened rates (or cost pool breakdown), and any scope context (metro, fee type, experience tier).
+
+2. For each LCAT, call `mcp__gsa-calc__price_reasonableness_check(labor_category, proposed_rate, experience_min, education_level)`. The MCP returns count, min/max, median, IQR bounds, z-score, and percentile position. If sample size is below ~25 records, label the pool "directional only, not statistical validation."
+
+3. For senior LCATs, also run the dual-pool flow (title-match + experience-match) and present both medians side-by-side.
+
+4. If metro context matters, pull BLS OEWS for that metro via `mcp__bls-oews__get_wage_data` and present the P50/P75/P90 with the cost pool buildup at default fringe / overhead / G&A rates. This shows how the rate sits against local market labor independent of the CALC+ nationwide pool.
+
+5. **Present a neutral positioning summary** using non-evaluative language:
+   - "Rate sits at CALC+ P77 (n=7, thin-corpus directional only)."
+   - "Above P50 by X%; stacked factors: [metro, seniority tier, aging, cost pool assumption]."
+   - "Below P25; pool composition or LCAT alignment may warrant CO review."
+   - "CR cost + fee often runs below CALC+ median because CALC+ reflects MAS ceiling (profit embedded) while CR separates cost and fee. CO sets the relevant comparison band."
+
+6. **Stop.** Do not write "the rate is fair and reasonable." Do not recommend negotiation positions. Do not suggest "push back only if..." text. Do not label rates "competitive," "aggressive," "outlier requiring justification."
+
+7. **Memo output (Option B path only).** If the user selected Option B at the Step 0 gate and supplied rationale + determination text, fill the memo template: benchmark tables from Steps 2-4, the user's rationale text verbatim in the findings section, the user's determination text verbatim in the Determination section. Do NOT paraphrase, do NOT add hedging, do NOT originate any conclusion text. Mark DRAFT. Use `[Contracting Officer Name]` and `[Agency]` placeholders. If Option A was selected, skip this step entirely.
 
 ## Information to Collect
 
@@ -158,7 +234,13 @@ Converts an unstructured SOW/PWS into structured pricing inputs.
 
 6. **Present decomposition table** for user validation.
 
-7. **User validation gate.** Confirm labor mix. Also confirm fee type: "Cost-reimbursement contracts require a fee structure. Based on [rationale], I recommend CPFF. Should I proceed with CPFF, or do you need CPAF or CPIF?"
+7. **User validation gate (CRITICAL) - two stages, not one.** Stage A/B gate applies to Workflow A+ (SOW-driven builds). Skip for Workflow A-LH/A-TM (FFP, CR) when the user provides structured inputs (LCATs, FTE, location, PoP) — those don't need decomposition validation, go straight to build parameters if anything is missing. Do not conflate "confirm the decomposition" with "pick build parameters." Run them separately:
+
+   **Stage A - Decomposition validation.** After presenting the decomposition table, ask the user to confirm or amend it. Use `AskUserQuestion` with options like "Decomposition looks right, proceed" / "Modify LCAT X" / "Add LCAT Y" / "Adjust FTE estimates." Response MUST END after this question. Wait for explicit confirmation before continuing.
+
+   **Stage B - Build parameters.** Only after the decomposition is confirmed, ask the remaining parameter questions in a separate `AskUserQuestion` call: fee type ("Cost-reimbursement contracts require a fee structure. Based on [rationale], I recommend CPFF. Should I proceed with CPFF, or do you need CPAF or CPIF?"), cost pool rates, metro confirmation, contract start, shift coverage density if 24x7. Response MUST END after this question.
+
+   DO NOT self-approve either stage. DO NOT skip Stage A to go straight to parameters. Proceeding to Step 1+ before Stage B is also answered is a skill violation. The user must affirmatively validate BOTH the decomposition and the parameters before build work begins.
 
 ### Step 0.5: Shift Coverage Staffing (If 24x7 or Multi-Shift)
 
@@ -355,7 +437,9 @@ Fee is calculated on each scenario's total cost. For CPIF, this produces a 3x3 m
 
 **Endpoint:** `https://calc.gsa.gov/api/v3/api/ceilingrates/`
 **Parameter:** `keyword=` (NOT `q=`; `q=` returns the full 265K-record corpus silently)
-**Fetch aggregations:** `page_size=0`
+**Fetch aggregations:** `page_size=0`. When you only need pool stats (count, min/max, percentiles) for validation, call `mcp__gsa-calc__igce_benchmark` instead of `keyword_search` — igce_benchmark returns trimmed stats without the 50KB+ labor_category/current_price aggregation buckets that blow up response size.
+
+Match the vendor's tier in the keyword, not the aggregate title. For 'Mid Software Developer' query `Software Developer II` not `Software Developer` — the aggregate pool mixes interns through Senior levels and can falsely flag rates as +70% divergent when the tier-matched pool is +11%.
 
 Example:
 ```
@@ -396,6 +480,28 @@ CR burdened rates often diverge from CALC+ more than LH/TM because CALC+ reflect
 
 **Use the GSA Per Diem Rates API skill.** Query monthly lodging and M&IE for each destination.
 
+**DoD installation → GSA per diem city crosswalk.** GSA keys per diem by civilian locality, not by military installation. Looking up "Fort Meade" or "Pentagon" directly returns empty. Translate the installation to its GSA locality BEFORE calling the MCP:
+
+| DoD installation | GSA locality | Metro |
+|---|---|---|
+| Fort Meade, MD | Annapolis / Anne Arundel County, MD | Baltimore |
+| Fort Belvoir, VA | Fairfax / Alexandria, VA | DC |
+| Pentagon, VA | Arlington, VA (use DC rate) | DC |
+| Joint Base Andrews, MD | District of Columbia | DC |
+| NSA Bethesda / Walter Reed, MD | District of Columbia (composite) | DC |
+| Fort Liberty (Bragg), NC | Fayetteville, NC | Fayetteville |
+| Peterson SFB / Schriever SFB / Fort Carson, CO | Colorado Springs, CO | Colorado Springs |
+| Wright-Patterson AFB, OH | Dayton, OH | Dayton |
+| Eglin AFB, FL | Fort Walton Beach, FL | Pensacola-Crestview |
+| JB San Antonio / Randolph / Lackland, TX | San Antonio, TX | San Antonio |
+| Hanscom AFB, MA | Bedford / Boston, MA | Boston |
+| Redstone Arsenal, AL | Huntsville, AL | Huntsville |
+| Offutt AFB, NE | Omaha / Bellevue, NE | Omaha |
+| Cape Canaveral / Patrick SFB, FL | Cocoa Beach / Cape Canaveral, FL | Palm Bay-Melbourne |
+| JB Lewis-McChord, WA | Tacoma / Pierce County, WA | Seattle-Tacoma |
+
+If the installation is not on this list, query `mcp__gsa-perdiem__lookup_city_perdiem` with the nearest civilian city and cross-check the result's `county` field.
+
 **City Pair airfare (optional):** When origin and destination known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
 **Per-trip cost by trip length:**
@@ -427,6 +533,8 @@ trip_total = mie_per_trip
 ```
 annual_travel = trip_total * trips_per_year * travelers
 ```
+
+If the contract PoP start is within 6 months of the next federal fiscal year, query both FYs; if the target FY is not yet published (FY{N+1} publishes mid-August {N}), use current FY as conservative baseline and note in methodology: 'refresh on FY{N+1} publication.'
 
 **No travel case:** If user confirms zero travel, do NOT build Sheet 5 with placeholder zeros that break SUM formulas. Use a minimal sheet with text "Travel Not Applicable" and no cell references. Sheet 1 Travel row = 0 literal.
 
@@ -474,6 +582,22 @@ Travel is identical across all scenarios.
 ### Step 8: Produce the CR IGCE Workbook
 
 Generate a multi-sheet .xlsx workbook using openpyxl. Use Excel formulas for all calculations. Run recalc script (`python /mnt/skills/public/xlsx/scripts/recalc.py <file>`) before presenting.
+
+**Environment-specific recalc handling:**
+- **claude.ai web chat:** rerun `python /mnt/skills/public/xlsx/scripts/recalc.py <file>`.
+- **Claude Code CLI (no LibreOffice):** the recalc script is unavailable. Instead, compute the expected grand total in Python against the raw inputs and cost pool buildup:
+
+```python
+expected = sum(
+    total_price_per_fte * fte * scenario_months / 12
+    for lcat in lcats
+    for total_price_per_fte in [lcat.total_estimated_price_annual_per_fte]
+)
+```
+
+Verify the computed total lands within 1% of your Python-side expected total. If yes, dimensional correctness is confirmed; Excel/Numbers will recalculate cell formulas on open. If no, the aging-factor cross-reference or cost-pool block-indexing shift is likely the cause.
+
+- **macOS Claude Desktop with Numbers installed:** Numbers auto-recalculates on file open; no script needed.
 
 **Workbook structure (7 sheets, or 6 if no travel):**
 
@@ -552,7 +676,17 @@ Row 4+: one row per category
 
 Dual-pool columns when title-match N<10: add "Pool A (Title)" and "Pool B (Experience)" median columns, cite N for each.
 
-**Sheet 5: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only):
+**Sheet 5: Travel Detail.** Formula-driven per destination (skip this sheet if no travel, use text "Travel Not Applicable" only).
+
+**Multi-destination parameterization.** For M destinations, block N starts at row `1 + (N-1) * 17` with a 16-row content layout and 1-row separator. In-block row indices shift by `(N-1) * 17`. Do NOT hard-code one city: if the user provides "2 trips/yr to Huntsville + 4 trips/yr to San Diego," build two blocks with distinct labeled headers ("Travel Cost Detail: Huntsville, AL" and "Travel Cost Detail: San Diego, CA") and have Sheet 1 Travel rows SUM across destinations:
+
+```
+Annual travel (Sheet 1) = SUM across destinations of annual_travel_cost cell
+                        = SUM('Travel Detail'!$B$14, 'Travel Detail'!$B$31, ...)
+```
+
+Single-destination single-block layout (block 1):
+
 ```
 Row 3: A="Fiscal Year"           B=<current federal FY>          (blue)
 Row 4: A="Nightly Lodging Rate"  B=[max monthly]                 (blue)
@@ -570,7 +704,7 @@ Row 14: A="Annual Travel Cost"   B==B11*B12*B13                  (formula, bold)
 
 **Sheet 6: Methodology.** CR-specific narrative. Include: cost pool buildup with each pool explained, shift coverage FTE math if 24x7, fee type selection rationale and FAR reference, fee-specific notes (CPFF: fee fixed regardless of cost outcome; CPAF: assumed earned % and evaluation basis; CPIF: target cost/fee, share ratios, min/max), statutory fee caps (10 USC 3322(a) for R&D), FAR 16.301-16.307 references, data sources with dates, BLS vintage + aging adjustment, escalation basis, travel methodology (including 0-night day trips if applicable), exclusions, NAICS/PSC if provided.
 
-**Sheet 7: Raw Data.** All API query parameters and responses.
+**Sheet 7: Raw Data.** All API query parameters and responses. Record summary tables (count, percentiles, series IDs, query parameters) — NOT raw JSON dumps. A reviewer should reproduce the query from the parameters, not wade through 50KB of aggregation buckets.
 
 **Formatting standards:**
 - Blue font (RGB 0,0,255) for all user-adjustable inputs
@@ -588,32 +722,20 @@ Never output as .md or HTML unless explicitly requested.
 
 ### Step 9: Present the File
 
-After writing the workbook, copy to the outputs directory AND call `present_files` so the user sees a download link in the UI.
+**Environment-specific delivery:**
+- **claude.ai web chat:** copy to `/mnt/user-data/outputs/<name>.xlsx` and call `present_files([...])`.
+- **Claude Code CLI:** write to `$PWD` or user-supplied path. Print the absolute path. On macOS also run `open <path>`; on Linux `xdg-open <path>`; on Windows `start "" <path>`. Do NOT try `/mnt/user-data/outputs/` — does not exist outside claude.ai.
+- **macOS Claude Desktop with Numbers:** write path, run `open <path>`. Numbers auto-recalculates on open.
 
-```python
-import shutil
-shutil.copy(workbook_path, "/mnt/user-data/outputs/IGCE_CR_<project>.xlsx")
-# Then invoke the file-presentation tool
-present_files(["/mnt/user-data/outputs/IGCE_CR_<project>.xlsx"])
-```
-
-Do NOT skip this step. A workbook that exists in the sandbox but is not presented looks like a silent failure to the user.
+Do NOT skip delivery. A workbook in the sandbox that isn't surfaced looks like a silent failure.
 
 ## Edge Cases
-
-**Labor categories not in BLS:** Find closest SOC code(s), query candidates, present range, document rationale.
-
-**No CALC+ results:** Try broader keywords. If nothing, note unavailable; rely on BLS alone. Mark Status "No CALC+ data."
-
-**BLS wage at reporting cap:** Use $239,200/$115.00 as lower bound. Flag conservative floor.
 
 **BAA without contract type specified:** Suggest CPFF as default (most common for R&D BAAs under FAR 35.016). Confirm with user.
 
 **Fee exceeds statutory cap:** If calculated fee exceeds 15% for R&D or 10% practical ceiling, flag and reduce to cap. Note in methodology.
 
-**CPIF share ratio edge cases:** If fee calculation hits min or max bound, note that the share ratio no longer applies in that range. The contractor's fee is capped.
-
-**Partial-year periods:** Prorate hours and travel. Fee calculated on prorated cost.
+**CPIF share ratio edge cases:** If fee calculation hits min or max bound, the share ratio no longer applies in that range. Contractor's fee is capped.
 
 **Silent-wrong-answer traps:**
 - `q=` parameter on CALC+ returns the full 265K-record corpus silently. Always use `keyword=` or `search=`.
@@ -638,29 +760,13 @@ Include as placeholder rows or methodology notes:
 
 ## Quick Start Examples
 
-**CPFF:** "CPFF IGCE for an R&D contract, 3 researchers in Bethesda, base plus 2 OYs"
-Claude will: map to SOC 19-1099 (or domain-specific research), pull Bethesda BLS wages with P25/P50/P75, build cost pools with cell-referenced aging, calculate 8% fixed fee, validate against CALC+ at `keyword=` endpoint, produce 7-sheet xlsx with fee analysis and present.
+**CPFF:** "CPFF IGCE for an R&D contract, 3 researchers in Bethesda, base plus 2 OYs" → map SOC, pull Bethesda BLS with P25/P50/P75, build cost pools with cell-referenced aging, calculate 8% fixed fee, validate against CALC+, 7-sheet xlsx.
 
-**BAA:** "We're issuing a BAA for AI research, need a cost estimate for evaluation"
-Claude will: confirm CR (suggest CPFF as default for BAAs), ask for labor details, run full workflow. Note FAR 35.016 in methodology.
+**BAA:** "We're issuing a BAA for AI research, need a cost estimate" → confirm CR (CPFF default for BAAs), ask for labor details, run full workflow. Note FAR 35.016 in methodology.
 
-**CPAF:** "CPAF IGCE for a managed services contract, 10-person team in DC"
-Claude will: build cost pools, calculate base fee (3%) + award pool (7%) at 85% assumed earned, produce scenario analysis showing fee range.
+**CPIF with 24x7 coverage:** "CPIF IGCE with 80/20 share ratio for continuous systems monitoring in Cleveland, base plus 2 OYs" → Step 0.5 → 4.2 FTE single-seat; pull Cleveland 0017410; build cost pools; produce 3x3 matrix (low/mid/high cost × underrun/target/overrun fee) bounded by min/max fee.
 
-**CPIF with 24x7 coverage:** "CPIF IGCE with 80/20 share ratio for continuous systems monitoring in Cleveland, base plus 2 OYs"
-Claude will: invoke Step 0.5 for 24x7 → 4.2 FTE single-seat; pull Cleveland 0017410 (post-2023 OMB renumbering); build cost pools; produce 3x3 matrix (low/mid/high cost x underrun/target/overrun fee); show fee bounded by min (3%) and max (12%).
-
-**SOW-driven:** "Here's my SOW for an R&D effort, build me a CPFF estimate" [user uploads]
-Claude will: run Step 0 decomposition, domain triage, validate, confirm CPFF, then full workflow.
-
-**Rate validation:** "Contractor proposes $195/hr fully burdened cost + fee on a CPFF contract. Reasonable?"
-Claude will: Workflow B. Pull CALC+ via `keyword=`, run BLS cost pool buildup, position $195 within ±10 / ±25 / outside bands, produce validation.
-
-**Physical engineering (DOE):** "CR IGCE for 6-person mechanical engineering team at Oak Ridge, base + 4 OYs"
-Claude will: domain triage (DOE → 17-2xxx); pull 17-2141 Mechanical at Oak Ridge 28940; build cost pools; validate against CALC+ with dual-pool for senior engineers (title + experience match); produce workbook.
-
-**No travel:** "CPFF IGCE for on-site-only team in DC, base + 2 OYs"
-Claude will: build labor + fee workbook; Sheet 5 shows "Travel Not Applicable" text only; Travel row in Sheet 1 is literal 0; no SUM breakage.
+**Rate validation:** "Contractor proposes $195/hr cost + fee on a CPFF contract. Reasonable?" → Workflow B. Pull CALC+, run BLS cost pool buildup, position within ±10 / ±25 / outside bands (no determination).
 
 
 ---
