@@ -43,6 +43,8 @@ This skill **assembles data** and **formats documents** from reasoning the contr
 - The skill does NOT draft a price reasonableness memo, a responsibility determination, or any FAR-citing signature document unless the CO has already supplied the rationale and conclusion, in which case the skill formats the CO's text into the template.
 - Narrative prose (chat summaries, Methodology sheet, Rate Validation status) avoids evaluative verbs: "defensible," "reasonable," "acceptable," "competitive," "outlier." Replace with neutral positioning: "at P77 of CALC+ pool (n=X)," "within BLS P90 burdened equivalent," "above P50 by Y%, document stacked factors in Methodology."
 
+Stacked factors refers to the component sources of a rate premium. Typical examples: metro wage differential, seniority tier premium, clearance requirement premium, lab/SCIF overhead, thin CALC+ corpus (directional only), MAS ceiling vs CR cost-plus-fee separation, BLS vintage aging. Name the specific factors that apply, not the word "stacked" alone.
+
 If you find yourself writing a conclusion about whether a number is right or wrong, stop. Present the data and let the CO conclude.
 
 ## Pre-flight: MCP dependency check
@@ -254,14 +256,15 @@ Project Oversight       | Project Manager     | 13-1082  | 1         | Single co
 
 If the requirement specifies 24x7 coverage, around-the-clock SOC, NOSC, help desk, or continuous monitoring, headcount must be grossed up from productive hours to coverage hours.
 
-**Single-seat 24x7 (one analyst always on duty):**
+**Single-seat 24x7 (one analyst always on duty):** 4.2 FTE.
+
+Derivation: one shift covers 2,080 hrs/yr at ~95% availability. Four shifts cover 8,760 annual hours with 50% blended availability (leave, training, overlap, turnover). Industry convention.
+
 ```
 annual_coverage_hours = 24 * 365 = 8,760
 productive_hours_per_fte = 2,080
-availability_factor = 0.50   # leave, training, turnover, overlap
-single_seat_fte = 8,760 / (2,080 * availability_factor) = ~8.4 FTE
+single_seat_fte = 4.2 FTE   # industry convention
 ```
-Simplification: use 4.2 FTE for single-seat 24x7 as the common industry convention (accounts for 50% availability + leave + overlap).
 
 **Double-seat 24x7 (two analysts always on duty):** 8.4 FTE.
 
@@ -311,7 +314,9 @@ Map user job titles to SOC codes. Apply domain triage from Step 0 first.
 | Mechanical Engineer | 17-2141 | Mechanical Engineers |
 | Nuclear Engineer | 17-2161 | Nuclear Engineers |
 | Petroleum Engineer | 17-2171 | Petroleum Engineers |
-| Engineers, All Other (catch-all) | 17-2199 | Engineers, All Other |
+| Engineers, All Other (fallback) | 17-2199 | Engineers, All Other |
+
+Use 17-2199 when the role doesn't cleanly fit one engineering discipline (RF, antenna, radar, systems integration specialties). Pull alongside a specific engineering SOC for comparison.
 
 When mapping is ambiguous, query multiple SOC codes and present the range.
 
@@ -366,6 +371,8 @@ Pull all 5 percentiles (P10/P25/P50/P75/P90) for any multi-level LCAT. Cite whic
 
 If BLS returns "-" with footnote code 5, the wage exceeds the $239,200 cap. Use the cap as a lower bound and flag in the narrative. If the chosen percentile lands within 10% of the cap (≥ $215,280 annual / ≥ $103.50 hourly), note in Methodology that the local market may exceed the stated value and flag for CO review.
 
+**BLS flat-tail detection.** If P75 equals P90 in the BLS return AND neither hits the $239,200 cap, the local top-tail is sample-constrained (single dominant employer, thin high-end pool). Flag in Methodology: "Local P75/P90 collapsed; top-tail data sparse, local market may run higher than stated."
+
 ### Step 2B: Age BLS Wages to Contract Start Date
 
 BLS OEWS data has a ~2-year lag (May 2024 estimates released April 2025). If the contract Period of Performance starts after the data reference period, the base wages must be aged forward to avoid understating costs.
@@ -405,13 +412,13 @@ Note: 2,080 converts annual to hourly. Productive hours (1,880) are used separat
 
 **IGCE use case for CALC+:** directional sanity-layer validation of BLS-burdened rates against GSA MAS awarded ceiling pool. `keyword=` is acceptable here per the CALC+ skill (sanity layer, not formal rate statistics). Full endpoint base URL, response envelope shape, and corpus skew guidance all live in the CALC+ skill.
 
-**Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. igce_benchmark returns trimmed stats (count, min/max/mean, P10-P90) without the 50KB+ labor_category/current_price aggregation buckets that blow up response size. If using `keyword_search`, `page_size=0` computes aggregations over the full result set.
+**Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. igce_benchmark returns trimmed stats (count, min/max/mean, P10-P90) without the 50KB+ labor_category/current_price aggregation buckets that blow up response size. `page_size=0` is no longer accepted by the MCP. Use `page_size=1` minimum when aggregation stats are needed; prefer `mcp__gsa-calc__igce_benchmark` for stats-only access (no corpus, trimmed return shape).
 
 Match the vendor's tier in the keyword, not the aggregate title. For 'Mid Software Developer' query `Software Developer II` not `Software Developer` — the aggregate pool mixes interns through Senior levels and can falsely flag rates as +70% divergent when the tier-matched pool is +11%.
 
 Example call pattern (resolve actual base URL from the CALC+ skill at invocation time):
 ```
-GET {CALC_BASE_URL}?keyword=Software+Developer&page_size=0
+GET {CALC_BASE_URL}?keyword=Software+Developer&page_size=1
 ```
 
 **CRITICAL JSON paths for CALC+ statistics:**
@@ -426,7 +433,7 @@ p25      = aggs["histogram_percentiles"]["values"]["25.0"]
 p75      = aggs["histogram_percentiles"]["values"]["75.0"]
 ```
 
-**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
+**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=1). Always use `histogram_percentiles`.
 
 **Dual-pool analysis for senior LCATs:** When title-match alone returns N<10, add a second query with experience-anchored keyword:
 - Pool A (title-match): `keyword=Senior+Software+Engineer`
@@ -475,8 +482,16 @@ Divergence formula: `((bls_burdened - calc_median) / calc_median) * 100`. Diverg
 | Sandia National Labs, NM | Albuquerque, NM | Albuquerque |
 | Lawrence Livermore National Lab, CA | Livermore / Oakland, CA | Oakland-Fremont |
 | Idaho National Lab, ID | Idaho Falls, ID | Idaho Falls |
+| White Sands Missile Range, NM | Las Cruces, NM | El Paso |
+| NAWS China Lake, CA | Ridgecrest / Kern County, CA | Bakersfield |
+| Edwards AFB, CA | Lancaster / Palmdale, CA | Los Angeles |
+| Dugway Proving Ground, UT | Salt Lake City metro (std rate) | Salt Lake City |
+| Nellis AFB / Creech AFB, NV | Las Vegas, NV | Las Vegas |
+| Point Mugu / NBVC, CA | Oxnard / Ventura County, CA | Oxnard |
 
 If the installation is not on this list, query `mcp__gsa-perdiem__lookup_city_perdiem` with the nearest civilian city and cross-check the result's `county` field.
+
+**Same-metro TDY proximity check.** If `performance_location` MSA equals `travel_destination` MSA (same metro, <50 mi), overnight lodging per diem may not qualify under FTR 301-7.103. Flag in Methodology: "Same-MSA travel; if this is not overnight TDY, zero the lodging line and use mileage only."
 
 **City Pair airfare (optional):** When origin and destination are known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
@@ -505,6 +520,8 @@ lodging_per_trip = 0                 # no overnight stay
 mie_per_trip = mie_rate * 0.75       # single partial day only
 trip_total = mie_per_trip
 ```
+
+The MCP `mcp__gsa-perdiem__get_mie_breakdown` returns `mie_first_last_day` already discounted to 75%. Use that value directly. Do NOT multiply by 0.75 again or you ship 25% low M&IE on day trips. Formula on MCP output: `mie_per_trip = mie_first_last_day` for 0-night trips.
 
 ```
 annual_travel = trip_total * trips_per_year * travelers
@@ -607,10 +624,10 @@ A4: "Burden Multiplier (High)"                 B4: 2.2     (blue)
 A5: "Escalation Rate"                          B5: 0.025   (blue, pct)
 A6: "Productive Hours/Year"                    B6: 1880    (blue)
 A7: "Base Year Months"                         B7: 12      (blue; <12 for partial)
-A8: "BLS Vintage"                              B8: "May 2024"  (blue)
-A9: "Contract Start"                           B9: 2026-10-01  (blue, date)
-A10: "Months Gap"                              B10: =DATEDIF(B8,B9,"m")  (formula)
-A11: "Aging Factor"                            B11: =(1+B5)^(B10/12)      (formula)
+A8: "BLS Vintage"                              B8: =DATE(2024,5,1)           (blue, real date)
+A9: "Contract Start"                           B9: =DATE(2026,10,1)          (blue, real date, user-editable)
+A10: "Months Gap"                              B10: =DATEDIF(B8,B9,"m")      (formula)
+A11: "Aging Factor"                            B11: =(1+B5)^(B10/12)         (formula)
 A12: (blank row separator)
 A13: header row for data table
 ```
@@ -634,14 +651,16 @@ $B$11 = Aging Factor                 (multiplies ALL raw BLS wages)
 **Block layout formula:** `row(N) = 1 + (N-1) * 15` where N is the LCAT index. Within each block (offsets from block top):
 - +1: LCAT header (merged)
 - +2: "Measure" | "Value" | blank | "Period" | Low | Mid | High
-- +3: BLS Base Annual Wage (hardcoded from raw BLS pull)
-- +4: Aged to Contract Start (= base × aging_factor)
-- +5: Hourly base (annual / 2080)
+- +3: BLS Base Annual Wage (raw BLS pull, hardcoded)
+- +4: Aged Annual Wage (= Row+3 * $B$11 aging factor)
+- +5: Direct Labor Rate Hourly (= Row+4 / 2080)
 - +6: Burdened Low (= hourly × $B$2)
 - +7: Burdened Mid (= hourly × $B$3)
 - +8: Burdened High (= hourly × $B$4)
 - +10 through +13: period rows (Base, OY1, OY2, OY3) × three burden columns
 - +14: Total row (SUM of +10 through +13)
+
+The Aged Annual Wage gets its own row so the aging math is visible on the sheet; a reviewer can see BLS Base and Aged side by side. Sheet 2 blocks compute hourly rates. Sheet 1 Summary multiplies by productive hours × FTE × period duration for annual figures. Formula: `Sheet 1 annual = 'Scenario Analysis'!burdened_mid * $B$6 * FTE * ($B$7/12)`.
 
 Travel and materials identical across scenarios. Summary row at the bottom: "Range: $X (low) to $Y (high), Mid estimate: $Z."
 

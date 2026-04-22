@@ -4,18 +4,22 @@
 
 ## The bottom line
 
-Two waves of testing for the Cost-Reimbursement skill across April 2026: Wave 1 inherited the full patch set from FFP Wave 5 and LH/T&M Wave 2 without direct CR scenarios. Wave 2 ran three lazy-prompt scenarios on Claude Opus 4.7 covering all three fee types (CPFF biomedical research, CPAF managed services, CPIF Oak Ridge engineering). Wave 2 surfaced 22 findings; 14 were patched, 8 dropped as too scenario-specific. The skill now produces auditable CPFF, CPAF, and CPIF workbooks end-to-end with cost pool buildup, fee structure analysis, and ai-boundaries-compliant narrative.
+Two rounds of testing for the Cost-Reimbursement skill across April 2026: Wave 1 inherited the full patch set from FFP Wave 5 and LH/T&M Wave 2 without direct CR scenarios. Wave 2 ran six scenarios on Claude Opus 4.7 across two rounds: three lazy-prompt scenarios (CPFF biomedical, CPAF managed services, CPIF Oak Ridge) plus three detailed-prompt scenarios (CPFF AFRL BAA, CPAF HHS Claims, CPIF Sandia RF). Wave 2 surfaced 22 findings in the lazy round plus 31 additional findings in the detailed round. 14 lazy-round patches shipped. 11 detailed-round findings were triaged as universal-principle patches ported across all 3 IGCE skills (Wave 3 below). The skill now produces auditable CPFF, CPAF, and CPIF workbooks end-to-end with cost pool buildup, fee structure analysis, and ai-boundaries-compliant narrative.
 
 - **Wave 1** (inherited): six universal patches from FFP Wave 5 and LH/T&M Wave 2 applied without direct CR scenarios. ai-boundaries v2 gate, pre-flight MCP check, Step 0 two-stage validation gate (with fee type as a Stage B parameter), DoD installation to GSA per diem crosswalk, multi-destination travel sheet, CLI recalc fallback, CALC+ query optimizations, FY rollover guidance.
-- **Wave 2** (lazy-prompt validated, Claude Code CLI, Opus 4.7): three scenarios run with deliberately sparse user inputs to exercise the skill's decomposition, parameter-prompting, and fee-type-selection paths. 22 findings surfaced across the three scenarios; 14 universal and CR-specific patches shipped; 8 dropped as edge-case.
+- **Wave 2** (six scenarios validated, Claude Code CLI, Opus 4.7): three lazy-prompt scenarios plus three detailed-prompt scenarios run with realistic user framing to exercise decomposition, parameter prompting, and fee-type selection across all three fee types. Lazy round: 22 findings, 14 patches shipped. Detailed round: 31 additional findings, 11 triaged as universal patches shipped to all 3 IGCE skills (see Wave 3).
+- **Wave 3** (universal patches derived from CR Wave 2 detailed round): 11 universal-principle patches shipped identically to FFP, LH/T&M, and CR. Inherited across all 3 skills; not re-tested per-skill.
 
 ## Scenarios tested and how reliably they work
 
-| Scenario | Fee type | Lazy prompt | Result |
+| Scenario | Fee type | Prompt style | Result |
 |---|---|---|---|
-| CPFF biomedical research at NIH Bethesda (PhD biomedical scientists, no travel, base + 3 OYs) | CPFF | "price an NIH research contract, 4 PhDs, base plus options" | Reliable after Wave 2 patches. Medical Scientist SOC (19-1042) added. Cost pool buildup at research-lab defaults. 85% assumed earned gated. |
-| CPAF managed services at civilian agency (10-person team, CALC+ rate validation, base + 2 OYs) | CPAF | "build a CR IGCE for a managed services contract with award fee" | Reliable after Wave 2 patches. 3-scenario fee view (base only, target with 85% earned, ceiling with full pool) shown in Summary. |
-| CPIF Oak Ridge DOE engineering (asymmetric share ratio, bound-crossing variance, 6 LCATs, base + 4 OYs) | CPIF | "CPIF IGCE at Oak Ridge, 80/20 over and 50/50 under, complex work" | Reliable after Wave 2 patches. Asymmetric share ratios split into contractor_share_over and contractor_share_under. ±25% bound-crossing variance documented. |
+| CPFF biomedical research at NIH Bethesda (PhD biomedical scientists, no travel, base + 3 OYs) | CPFF | Lazy: "price an NIH research contract, 4 PhDs, base plus options" | Reliable after Wave 2 patches. Medical Scientist SOC (19-1042) added. Cost pool buildup at research-lab defaults. 85% assumed earned gated. |
+| CPAF managed services at civilian agency (10-person team, CALC+ rate validation, base + 2 OYs) | CPAF | Lazy: "build a CR IGCE for a managed services contract with award fee" | Reliable after Wave 2 patches. 3-scenario fee view (base only, target with 85% earned, ceiling with full pool) shown in Summary. |
+| CPIF Oak Ridge DOE engineering (asymmetric share ratio, bound-crossing variance, 6 LCATs, base + 4 OYs) | CPIF | Lazy: "CPIF IGCE at Oak Ridge, 80/20 over and 50/50 under, complex work" | Reliable after Wave 2 patches. Asymmetric share ratios split into contractor_share_over and contractor_share_under. ±25% bound-crossing variance documented. |
+| CPFF AFRL BAA (Dayton) | CPFF 8% | Detailed prompt: "cpff for a BAA with AFRL out of Wright-Patt. R&D advanced materials characterization..." | Valid workbook, $5.61M 5-yr. Workflow A+ clean. FY rollover patch worked. Wright-Patt → Dayton crosswalk confirmed. 9 findings. |
+| CPAF HHS Claims (DC+Baltimore) | CPAF 3%+7% | Detailed prompt: "cpaf igce for HHS O&M claims processing..." | Valid workbook, $24.6M 5-yr. Multi-metro labor split (8 DC / 4 Baltimore). 3-scenario fee view confirmed. 10 findings. |
+| CPIF Sandia RF (Albuquerque) | CPIF 7.5% target, 80/20 over, 70/30 under | Detailed prompt: "cpif for Sandia, 8 RF hardware engineers..." | Valid workbook, $12.27M 3-yr. Asymmetric share ratio confirmed. DOE crosswalk confirmed. 12 findings. |
 
 ## Manual-verification checklist
 
@@ -142,6 +146,10 @@ All universal patches derived from FFP Wave 5 and LH/T&M Wave 2 testing applied 
 - Custom cost pool rates supplied by CO (skill has rule; no direct test)
 - Sonnet 4.6 parity on Wave 2 patches (all runs Opus 4.7)
 
+## Wave 3 (universal patches derived from CR Wave 2 detailed-prompt round)
+
+**Wave 3** (Universal patches derived from CR Wave 2 detailed-prompt round): The detailed-prompt scenarios surfaced 31 additional evaluator findings beyond the lazy round. 11 were triaged as universal-principle patches worth shipping to all 3 IGCE skills; the rest were scenario-specific or architectural (deferred). Patches applied: page_size=0 deprecation, 24x7 math contradiction resolved, DATEDIF on text cells fixed, day-trip M&IE double-discount corrected (correctness bug shipping 25% low), aged-wage row placement explicit, Sheet 2 hourly vs Sheet 1 annual clarified, BLS flat-tail detection rule, installation crosswalk expanded with 6 DoD/DOE test ranges, SOC 17-2199 fallback documented, same-metro TDY proximity check, stacked factors term enumerated. Status: inherited patches across FFP / LH-TM / CR identically.
+
 ---
 
-*Testing record prepared April 2026 by James Jenrette / 1102tools. Two waves documented: Wave 1 inherited, Wave 2 lazy-prompt validated. MIT licensed. Source: github.com/1102tools/federal-contracting-skills.*
+*Testing record prepared April 2026 by James Jenrette / 1102tools. Three waves documented: Wave 1 inherited, Wave 2 six scenarios (lazy plus detailed prompts), Wave 3 universal patches. MIT licensed. Source: github.com/1102tools/federal-contracting-skills.*

@@ -42,6 +42,8 @@ This skill **assembles data** and **formats documents** from reasoning the contr
 - The skill does NOT draft a price reasonableness memo, a responsibility determination, or any FAR-citing signature document unless the CO has already supplied the rationale and conclusion, in which case the skill formats the CO's text into the template.
 - Narrative prose (chat summaries, Methodology sheet, Rate Validation status) avoids evaluative verbs: "defensible," "reasonable," "acceptable," "competitive," "outlier." Replace with neutral positioning: "at P77 of CALC+ pool (n=X)," "within BLS P90 cost-plus-fee equivalent," "above P50 by Y%, document stacked factors in Methodology."
 
+Stacked factors refers to the component sources of a rate premium. Typical examples: metro wage differential, seniority tier premium, clearance requirement premium, lab/SCIF overhead, thin CALC+ corpus (directional only), MAS ceiling vs CR cost-plus-fee separation, BLS vintage aging. Name the specific factors that apply, not the word "stacked" alone.
+
 If you find yourself writing a conclusion about whether a number is right or wrong, stop. Present the data and let the CO conclude.
 
 ## Pre-flight: MCP dependency check
@@ -246,14 +248,15 @@ Converts an unstructured SOW/PWS into structured pricing inputs.
 
 If the requirement specifies 24x7 coverage, around-the-clock SOC, NOSC, help desk, or continuous monitoring, headcount must be grossed up from productive hours to coverage hours.
 
-**Single-seat 24x7 (one analyst always on duty):**
+**Single-seat 24x7 (one analyst always on duty):** 4.2 FTE.
+
+Derivation: one shift covers 2,080 hrs/yr at ~95% availability. Four shifts cover 8,760 annual hours with 50% blended availability (leave, training, overlap, turnover). Industry convention.
+
 ```
 annual_coverage_hours = 24 * 365 = 8,760
 productive_hours_per_fte = 2,080
-availability_factor = 0.50   # leave, training, turnover, overlap
-single_seat_fte = 8,760 / (2,080 * availability_factor) = ~8.4 FTE
+single_seat_fte = 4.2 FTE   # industry convention
 ```
-Simplification: use 4.2 FTE for single-seat 24x7 as the common industry convention (accounts for 50% availability + leave + overlap).
 
 **Double-seat 24x7 (two analysts always on duty):** 8.4 FTE.
 
@@ -302,7 +305,9 @@ Map user job titles to SOC codes. Apply domain triage from Step 0 first.
 | Mechanical Engineer | 17-2141 | Mechanical Engineers |
 | Nuclear Engineer | 17-2161 | Nuclear Engineers |
 | Petroleum Engineer | 17-2171 | Petroleum Engineers |
-| Engineers, All Other (catch-all) | 17-2199 | Engineers, All Other |
+| Engineers, All Other (fallback) | 17-2199 | Engineers, All Other |
+
+Use 17-2199 when the role doesn't cleanly fit one engineering discipline (RF, antenna, radar, systems integration specialties). Pull alongside a specific engineering SOC for comparison.
 
 **Research / Science (BAAs, R&D contracts):**
 
@@ -348,6 +353,8 @@ Pull all 5 percentiles (P10/P25/P50/P75/P90) for any multi-level LCAT. Cite whic
 - **Wrong trailing zeros.** 151212 is the 6-char SOC. 15121200 is a Standard SOC 8-digit format that will fail the 25-char series ID assertion AFTER several queries have already constructed.
 
 If BLS returns "-" with footnote code 5, the wage exceeds the $239,200 cap. Use the cap as a lower bound and flag in the narrative. If the chosen percentile lands within 10% of the cap (≥ $215,280 annual / ≥ $103.50 hourly), note in Methodology that the local market may exceed the stated value and flag for CO review.
+
+**BLS flat-tail detection.** If P75 equals P90 in the BLS return AND neither hits the $239,200 cap, the local top-tail is sample-constrained (single dominant employer, thin high-end pool). Flag in Methodology: "Local P75/P90 collapsed; top-tail data sparse, local market may run higher than stated."
 
 ### Step 2B: Age BLS Wages to Contract Start Date
 
@@ -440,13 +447,13 @@ Fee is calculated on each scenario's total cost. For CPIF, this produces a 3x3 m
 
 **Endpoint:** `https://calc.gsa.gov/api/v3/api/ceilingrates/`
 **Parameter:** `keyword=` (NOT `q=`; `q=` returns the full 265K-record corpus silently)
-**Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. igce_benchmark returns trimmed stats (count, min/max/mean, P10-P90) without the 50KB+ labor_category/current_price aggregation buckets that blow up response size. If using `keyword_search`, `page_size=0` computes aggregations over the full result set.
+**Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. igce_benchmark returns trimmed stats (count, min/max/mean, P10-P90) without the 50KB+ labor_category/current_price aggregation buckets that blow up response size. `page_size=0` is no longer accepted by the MCP. Use `page_size=1` minimum when aggregation stats are needed; prefer `mcp__gsa-calc__igce_benchmark` for stats-only access (no corpus, trimmed return shape).
 
 Match the vendor's tier in the keyword, not the aggregate title. For 'Mid Software Developer' query `Software Developer II` not `Software Developer` — the aggregate pool mixes interns through Senior levels and can falsely flag rates as +70% divergent when the tier-matched pool is +11%.
 
 Example:
 ```
-GET https://calc.gsa.gov/api/v3/api/ceilingrates/?keyword=Research+Scientist&page_size=0
+GET https://calc.gsa.gov/api/v3/api/ceilingrates/?keyword=Research+Scientist&page_size=1
 ```
 
 **CRITICAL JSON paths:**
@@ -461,7 +468,7 @@ p25      = aggs["histogram_percentiles"]["values"]["25.0"]
 p75      = aggs["histogram_percentiles"]["values"]["75.0"]
 ```
 
-**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=0). Always use `histogram_percentiles`.
+**WARNING:** Do NOT read `wage_stats` or `histogram_percentiles` from the top level. They live under `aggregations.*`. Do NOT read from `wage_percentiles` (empty when page_size=1). Always use `histogram_percentiles`.
 
 **Dual-pool analysis for senior LCATs:** When title-match alone returns N<10, add a second query with experience-anchored keyword:
 - Pool A (title-match): `keyword=Senior+Research+Scientist`
@@ -508,8 +515,16 @@ CR burdened rates often diverge from CALC+ more than LH/TM because CALC+ reflect
 | Sandia National Labs, NM | Albuquerque, NM | Albuquerque |
 | Lawrence Livermore National Lab, CA | Livermore / Oakland, CA | Oakland-Fremont |
 | Idaho National Lab, ID | Idaho Falls, ID | Idaho Falls |
+| White Sands Missile Range, NM | Las Cruces, NM | El Paso |
+| NAWS China Lake, CA | Ridgecrest / Kern County, CA | Bakersfield |
+| Edwards AFB, CA | Lancaster / Palmdale, CA | Los Angeles |
+| Dugway Proving Ground, UT | Salt Lake City metro (std rate) | Salt Lake City |
+| Nellis AFB / Creech AFB, NV | Las Vegas, NV | Las Vegas |
+| Point Mugu / NBVC, CA | Oxnard / Ventura County, CA | Oxnard |
 
 If the installation is not on this list, query `mcp__gsa-perdiem__lookup_city_perdiem` with the nearest civilian city and cross-check the result's `county` field.
+
+**Same-metro TDY proximity check.** If `performance_location` MSA equals `travel_destination` MSA (same metro, <50 mi), overnight lodging per diem may not qualify under FTR 301-7.103. Flag in Methodology: "Same-MSA travel; if this is not overnight TDY, zero the lodging line and use mileage only."
 
 **City Pair airfare (optional):** When origin and destination known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin unknown, OCONUS, local travel, or user provides own airfare.
 
@@ -538,6 +553,8 @@ lodging_per_trip = 0                 # no overnight stay
 mie_per_trip = mie_rate * 0.75       # single partial day only
 trip_total = mie_per_trip
 ```
+
+The MCP `mcp__gsa-perdiem__get_mie_breakdown` returns `mie_first_last_day` already discounted to 75%. Use that value directly. Do NOT multiply by 0.75 again or you ship 25% low M&IE on day trips. Formula on MCP output: `mie_per_trip = mie_first_last_day` for 0-night trips.
 
 ```
 annual_travel = trip_total * trips_per_year * travelers
@@ -623,10 +640,10 @@ A6: "Fee Rate"                                 B6: 0.08     (blue, pct)
 A7: "Escalation Rate"                          B7: 0.025    (blue, pct)
 A8: "Productive Hours/Year"                    B8: 1880     (blue)
 A9: "Base Year Months"                         B9: 12       (blue; <12 for partial)
-A10: "BLS Vintage"                             B10: "May 2024"  (blue)
-A11: "Contract Start"                          B11: 2026-10-01  (blue, date)
-A12: "Months Gap"                              B12: =DATEDIF(B10,B11,"m")  (formula)
-A13: "Aging Factor"                            B13: =(1+B7)^(B12/12)        (formula)
+A10: "BLS Vintage"                             B10: =DATE(2024,5,1)          (blue, real date)
+A11: "Contract Start"                          B11: =DATE(2026,10,1)         (blue, real date, user-editable)
+A12: "Months Gap"                              B12: =DATEDIF(B10,B11,"m")    (formula)
+A13: "Aging Factor"                            B13: =(1+B7)^(B12/12)         (formula)
 A14: (blank row separator)
 A15: header row for data table
 ```
@@ -634,38 +651,44 @@ A15: header row for data table
 For CPAF: replace B6 with "Base Fee Rate" and add separate rows for Award Fee Pool Rate (0.07) and Assumed Earned % (0.85).
 For CPIF: replace B6 with "Target Fee Rate" and add rows for Share Ratio (Over), Share Ratio (Under), Min Fee, Max Fee.
 
-**Sheet 2: Cost Buildup.** One block per labor category showing BLS base through Total Price. Block size varies by fee type: CPFF = 19 rows, CPAF = 21 rows (adds Base Fee Rate + Award Pool Rate + Assumed Earned %), CPIF = 23 rows (adds Target Fee Rate + Share Ratio Over + Share Ratio Under + Min Fee + Max Fee). Block N starts at row `1 + (N-1) × block_size`. Assumption block row ranges: CPFF rows 2-13, CPAF rows 2-15, CPIF rows 2-17.
+**Sheet 2: Cost Buildup.** One block per labor category showing BLS base through Total Price. Block size varies by fee type: CPFF = 20 rows, CPAF = 22 rows (adds Base Fee Rate + Award Pool Rate + Assumed Earned %), CPIF = 24 rows (adds Target Fee Rate + Share Ratio Over + Share Ratio Under + Min Fee + Max Fee). Block N starts at row `1 + (N-1) × block_size`. Assumption block row ranges: CPFF rows 2-14, CPAF rows 2-16, CPIF rows 2-18.
 
 **Block layout formula:** `row(N) = 1 + (N-1) * 20` where N is the LCAT index.
-- BLS Base Wage at offset +1
-- Direct Labor Rate at offset +2
-- Total Estimated Cost at offset +12
-- Total Estimated Price at offset +17
-- Implied Multiplier at offset +18 (Total Price / Direct Labor)
+- BLS Base Annual Wage at offset +1 (raw BLS pull, hardcoded)
+- Aged Annual Wage at offset +2 (= BLS Base × aging factor)
+- Direct Labor Rate Hourly at offset +3
+- Total Estimated Cost at offset +13
+- Total Estimated Price at offset +18
+- Implied Multiplier at offset +19 (Total Price / Direct Labor)
+
+The Aged Annual Wage gets its own row so the aging math is visible on the sheet; a reviewer can see BLS Base and Aged side by side.
 
 ```
-Row 2: A="BLS Base Wage (Annual)"     B=[aged annual median using =BLS*$B$13]
-Row 3: A="Direct Labor Rate (Hourly)" B==B2/2080               (formula)
-Row 5: A="Fringe Rate"                B==$B$2                  (formula, refs assumption)
-Row 6: A="Fringe Amount"              B==B3*B5                  (formula)
-Row 7: A="Labor + Fringe"             B==B3+B6                  (formula)
-Row 8: A="Overhead Rate"              B==$B$3                  (formula, refs assumption)
-Row 9: A="Overhead Amount"            B==B7*B8                  (formula)
-Row 10: A="Subtotal"                  B==B7+B9                  (formula)
-Row 11: A="G&A Rate"                  B==$B$4                  (formula, refs assumption)
-Row 12: A="G&A Amount"                B==B10*B11                (formula)
-Row 13: A="Total Estimated Cost"      B==B10+B12                (formula)
+Row 2: A="BLS Base Annual Wage"       B=[raw BLS median, hardcoded]
+Row 3: A="Aged Annual Wage"           B==B2*$B$13               (formula, refs aging factor)
+Row 4: A="Direct Labor Rate (Hourly)" B==B3/2080                (formula)
+Row 6: A="Fringe Rate"                B==$B$2                   (formula, refs assumption)
+Row 7: A="Fringe Amount"              B==B4*B6                  (formula)
+Row 8: A="Labor + Fringe"             B==B4+B7                  (formula)
+Row 9: A="Overhead Rate"              B==$B$3                   (formula, refs assumption)
+Row 10: A="Overhead Amount"           B==B8*B9                  (formula)
+Row 11: A="Subtotal"                  B==B8+B10                 (formula)
+Row 12: A="G&A Rate"                  B==$B$4                   (formula, refs assumption)
+Row 13: A="G&A Amount"                B==B11*B12                (formula)
+Row 14: A="Total Estimated Cost"      B==B11+B13                (formula)
 
 Fee Analysis:
-Row 15: A="Fee Type"                  B==$B$5                  (formula)
-Row 16: A="Fee Rate"                  B==$B$6                  (formula, refs assumption)
-Row 17: A="Fee Amount"                B==B13*B16                (formula)
-Row 18: A="Total Estimated Price"     B==B13+B17                (formula, bold)
-Row 19: A="Implied Multiplier"        B==B18/B3                 (formula, 0.00"x")
+Row 16: A="Fee Type"                  B==$B$5                   (formula)
+Row 17: A="Fee Rate"                  B==$B$6                   (formula, refs assumption)
+Row 18: A="Fee Amount"                B==B14*B17                (formula)
+Row 19: A="Total Estimated Price"     B==B14+B18                (formula, bold)
+Row 20: A="Implied Multiplier"        B==B19/B4                 (formula, 0.00"x")
 ```
 
-For CPAF: rows 15-19 expand to base fee, award pool, assumed earned %, calculated fee, total price.
-For CPIF: rows 15-21 expand to target fee, overrun/underrun scenarios with share ratio, min/max bounds.
+Sheet 2 blocks compute hourly rates. Sheet 1 Summary multiplies by productive hours × FTE × period duration for annual figures. Formula: `Sheet 1 annual = 'Cost Buildup'!FBR_cell * $B$6 * FTE * ($B$7/12)`.
+
+For CPAF: rows 16-20 expand to base fee, award pool, assumed earned %, calculated fee, total price.
+For CPIF: rows 16-22 expand to target fee, overrun/underrun scenarios with share ratio, min/max bounds.
 
 **Annotation text gotcha:** Annotation cells (column C or D methodology notes) cannot START with `= + - @` or Excel tries to parse as a formula. Prefix with apostrophe (`'=2,080 hours/year`) or lead with a non-operator character (`"Note: 2,080 hours/year"`). Applies anywhere a cell value starts with those four characters.
 

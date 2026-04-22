@@ -41,6 +41,8 @@ This skill **assembles data** and **formats documents** from reasoning the contr
 - The skill does NOT draft a price reasonableness memo, a responsibility determination, or any FAR-citing signature document unless the CO has already supplied the rationale and conclusion, in which case the skill formats the CO's text into the template.
 - Narrative prose (chat summaries, Methodology sheet, Rate Validation status) avoids evaluative verbs: "defensible," "reasonable," "acceptable," "competitive," "outlier." Replace with neutral positioning: "at P77 of CALC+ pool (n=X)," "within BLS P90 fully-burdened equivalent," "above P50 by Y%, document stacked factors in Methodology."
 
+Stacked factors refers to the component sources of a rate premium. Typical examples: metro wage differential, seniority tier premium, clearance requirement premium, lab/SCIF overhead, thin CALC+ corpus (directional only), MAS ceiling vs CR cost-plus-fee separation, BLS vintage aging. Name the specific factors that apply, not the word "stacked" alone.
+
 If you find yourself writing a conclusion about whether a number is right or wrong, stop. Present the data and let the CO conclude.
 
 ## Pre-flight: MCP dependency check
@@ -285,7 +287,7 @@ When the requirement specifies continuous coverage, convert to FTE using industr
 8x5 single-seat coverage         = positions_per_shift x 1.2 FTE
 ```
 
-The 4.2 factor accounts for ~25% non-productive time: PTO (10%), federal holidays (4%), training (5%), sick leave/turnover buffer (6%). Do NOT staff 4.0 FTE for 24x7 - that undercovers leave. Do NOT staff 1.0 FTE - that only covers one shift.
+Derivation: one shift covers 2,080 hrs/yr at ~95% availability. Four shifts cover 8,760 annual hours with 50% blended availability (leave, training, overlap, turnover). Industry convention. The 4.2 factor accounts for ~25% non-productive time: PTO (10%), federal holidays (4%), training (5%), sick leave/turnover buffer (6%). Do NOT staff 4.0 FTE for 24x7 - that undercovers leave. Do NOT staff 1.0 FTE - that only covers one shift.
 
 Document shift-coverage FTE derivation in the Methodology sheet: "24x7x365 SOC coverage at single-seat: 4.2 FTE per covered position per industry standard accounting for leave and training backfill."
 
@@ -346,6 +348,8 @@ Map user job titles to Standard Occupational Classification codes.
 | Petroleum Engineer | 17-2171 | Petroleum Engineers |
 | Systems Engineer (non-IT) | 17-2199 | Engineers, All Other |
 
+Use 17-2199 when the role doesn't cleanly fit one engineering discipline (RF, antenna, radar, systems integration specialties). Pull alongside a specific engineering SOC for comparison.
+
 **Science, research, and medical:**
 
 | Common Title | SOC Code | BLS Title |
@@ -398,6 +402,8 @@ The MCP builds the 25-char series ID, handles footnote code 5 (cap) vs. code 8 (
 Document this in Methodology as a convention, not a BLS standard.
 
 **Wage cap ($239,200 annual / $115.00 hourly).** When the MCP flags a value as capped, use the cap as a lower bound and flag in the narrative. If the chosen percentile lands within 10% of the cap (≥ $215,280 annual / ≥ $103.50 hourly), note in Methodology that the local market may exceed the stated value and flag for CO review.
+
+**BLS flat-tail detection.** If P75 equals P90 in the BLS return AND neither hits the $239,200 cap, the local top-tail is sample-constrained (single dominant employer, thin high-end pool). Flag in Methodology: "Local P75/P90 collapsed; top-tail data sparse, local market may run higher than stated."
 
 **Cap decision tree when P75 ALSO caps.** In single-employer-dominated metros (ORNL/Y-12 Knoxville Nuclear, certain LANL/INL physicists), P90 and sometimes P75 both cap. When P75 is capped:
 1. Use BLS Mean (datatype 04) as the senior-tier anchor. Document as "P75 capped, Mean used as uncapped senior anchor."
@@ -472,7 +478,7 @@ Follow a discovery-first pattern. The MCP returns clean aggregation stats; your 
 1. **Discover buckets.** Call `mcp__gsa-calc__suggest_contains(field="labor_category", term=<LCAT term>)`. Returns up to 100 buckets with `doc_count` per bucket plus a `likely_truncated` flag. If truncated, narrow the term.
 2. **If the top 2-3 buckets have combined records >=50:** call `mcp__gsa-calc__exact_search(field="labor_category", value=<exact bucket name>)` for each, then aggregate. This avoids the wildcard-match contamination that `keyword_search` produces (it also matches vendor_name and idv_piid).
 3. **If buckets are fragmented** (every bucket under ~30 records, common for niche cleared cyber / specialty engineering): fall back to `mcp__gsa-calc__keyword_search(keyword=<term>)`. Document the contamination caveat in Methodology.
-4. **Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. `mcp__gsa-calc__igce_benchmark(labor_category=<exact>, experience_min=N, education_level=X)` returns count, min/max/mean, std dev, and P10/P25/P50/P75/P90 in one call, without the 50KB+ labor_category/current_price aggregation buckets that blow up response size.
+4. **Default for Workflow A rate validation:** use `mcp__gsa-calc__igce_benchmark`. Call `keyword_search` only when you need the example-rate or labor-category buckets. `mcp__gsa-calc__igce_benchmark(labor_category=<exact>, experience_min=N, education_level=X)` returns count, min/max/mean, std dev, and P10/P25/P50/P75/P90 in one call, without the 50KB+ labor_category/current_price aggregation buckets that blow up response size. `page_size=0` is no longer accepted by the MCP. Use `page_size=1` minimum when aggregation stats are needed; prefer `mcp__gsa-calc__igce_benchmark` for stats-only access (no corpus, trimmed return shape).
 
 The MCP returns canonical stats at the top level of the response dict (count, min_rate, max_rate, avg_rate, p25, p50, p75). No JSON-path archaeology required.
 
@@ -538,10 +544,18 @@ Call `mcp__gsa-perdiem__estimate_travel_cost(city, state, num_nights, travel_mon
 | Sandia National Labs, NM | Albuquerque, NM | Albuquerque |
 | Lawrence Livermore National Lab, CA | Livermore / Oakland, CA | Oakland-Fremont |
 | Idaho National Lab, ID | Idaho Falls, ID | Idaho Falls |
+| White Sands Missile Range, NM | Las Cruces, NM | El Paso |
+| NAWS China Lake, CA | Ridgecrest / Kern County, CA | Bakersfield |
+| Edwards AFB, CA | Lancaster / Palmdale, CA | Los Angeles |
+| Dugway Proving Ground, UT | Salt Lake City metro (std rate) | Salt Lake City |
+| Nellis AFB / Creech AFB, NV | Las Vegas, NV | Las Vegas |
+| Point Mugu / NBVC, CA | Oxnard / Ventura County, CA | Oxnard |
 
 If the installation is not on this list, query `mcp__gsa-perdiem__lookup_city_perdiem` with the nearest civilian city and cross-check the result's `county` field.
 
 **"Between sites" travel canonical interpretation.** When user says "quarterly travel between sites" or "monthly travel between sites" with multiple locations, default to: trips/year TOTAL **split evenly across destinations**, NOT trips/year each way. Example: "quarterly travel between Fort Meade and Colorado Springs" = 4 trips total (2 MD→CO, 2 CO→MD), not 8. Confirm via `AskUserQuestion` only if the user says "each way" explicitly, or if the split would exceed reasonable burn rate (more than one trip per month per destination).
+
+**Same-metro TDY proximity check.** If `performance_location` MSA equals `travel_destination` MSA (same metro, <50 mi), overnight lodging per diem may not qualify under FTR 301-7.103. Flag in Methodology: "Same-MSA travel; if this is not overnight TDY, zero the lodging line and use mileage only."
 
 **City Pair airfare (optional):** When origin and destination are known, look up YCA fares at cpsearch.fas.gsa.gov. Skip if origin is unknown, OCONUS, local travel, or user provides their own airfare.
 
@@ -639,10 +653,10 @@ A5:  "Profit Rate"                   B5: 0.10      (blue font, percentage)
 A6:  "Escalation Rate/Yr"            B6: 0.025     (blue font, percentage)
 A7:  "Productive Hours/Year"         B7: 1880      (blue font)
 A8:  "Base Year Months (or PoP Months)" B8: 12       (blue font; for single-period PoPs like an 18-month study, relabel "Period Months" and set to total PoP length, e.g. 18)
-A9:  "BLS Vintage (YYYY-MM)"         B9: "2024-05" (blue font, text)
-A10: "Contract Start (YYYY-MM)"      B10: "2026-10" (blue font, text)
-A11: "Months Gap"                    B11: =(VALUE(LEFT(B10,4))-VALUE(LEFT(B9,4)))*12+(VALUE(MID(B10,6,2))-VALUE(MID(B9,6,2)))
-A12: "Aging Factor"                  B12: =(1+B6)^(B11/12)   (formula)
+A9:  "BLS Vintage"                    B9: =DATE(2024,5,1)    (blue font, real date)
+A10: "Contract Start"                 B10: =DATE(2026,10,1)   (blue font, real date, user-editable)
+A11: "Months Gap"                     B11: =DATEDIF(B9,B10,"m")
+A12: "Aging Factor"                   B12: =(1+B6)^(B11/12)   (formula)
 A13: (blank row separator)
 A14: header row for data table
 ```
@@ -685,6 +699,8 @@ Row 19: A="Implied Multiplier"           B==B18/B5                 (formula, 0.0
 ```
 
 Cross-sheet references from Sheet 1 point to the FBR row: `='Cost Buildup'!$B$X` where X = `18 + (labor_category_index - 1) * 19`.
+
+The Aged Annual Wage gets its own row so the aging math is visible on the sheet; a reviewer can see BLS Base and Aged side by side. Sheet 2 blocks compute hourly rates. Sheet 1 Summary multiplies by productive hours × FTE × period duration for annual figures. Formula: `Sheet 1 annual = 'Cost Buildup'!FBR_cell * $B$7 * FTE * ($B$8/12)`.
 
 **Cell format conventions:**
 - **Blue font (RGB 0,0,255):** hardcoded inputs (BLS raw wage in row 2; assumption cells B2:B10 on Sheet 1)
@@ -736,6 +752,8 @@ Row 14: A="Annual Travel Cost"    B==B11*B12*B13                  (formula, bold
 ```
 
 **Day-trip branch required.** Without the `IF(B7=0,...)` branches on rows 8 and 10, a day trip (Nights=0) produces 150% M&IE instead of the correct 75% single-partial-day per FTR 301-11.101. This is a silent wrong-answer bug at the workbook level; do not skip the IF branches even if all planned trips are overnight.
+
+**M&IE double-discount trap.** The MCP `mcp__gsa-perdiem__get_mie_breakdown` returns `mie_first_last_day` already discounted to 75%. Use that value directly. Do NOT multiply by 0.75 again or you ship 25% low M&IE on day trips. Formula on MCP output: `mie_per_trip = mie_first_last_day` for 0-night trips.
 
 **Sheet 6: Methodology.** FFP-specific narrative for the contract file. Target length: 8-12 sections, 2-4 sentences each, readable in 3 minutes. Longer than 14 sections usually means restating data that already lives in Sheet 1-4.
 

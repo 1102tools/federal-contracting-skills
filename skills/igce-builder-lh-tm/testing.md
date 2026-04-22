@@ -274,6 +274,10 @@ Wave 1 testing record produced under consistent methodology:
 - Worker self-critiques incorporated as findings when corroborated by observation
 - All findings come from direct observation of worker output, not inference from memory
 
+## Wave 4 (universal patches inherited from CR Wave 2 detailed-prompt round)
+
+**Wave 4** (Universal patches inherited from CR Wave 2 detailed-prompt round): Same 11 universal patches ported to LH/T&M identically to FFP. See Wave 7 on FFP testing record for full list. Status: inherited, not re-tested on LH/T&M directly.
+
 ---
 
 *Testing record prepared April 2026 by James Jenrette / 1102tools. Independent grading methodology. MIT licensed. Source: github.com/1102tools/federal-contracting-skills.*

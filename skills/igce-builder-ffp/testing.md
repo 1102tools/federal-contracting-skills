@@ -474,6 +474,10 @@ The Wave 1 and Wave 2 testing records were produced under a consistent methodolo
 - All findings come from direct observation of worker output and produced workbooks, not inference from memory of prior sessions
 - Downstream skill patches (BLS Rounds 2 and 3, CALC+ Round 2) shipped before IGCE FFP Wave 2 so the substrate was validated in the Opus retest
 
+## Wave 8 (universal patches inherited from CR Wave 2 detailed-prompt round)
+
+**Wave 8** (Universal patches inherited from CR Wave 2 detailed-prompt round): 11 universal-principle patches ported to FFP from CR detailed-prompt testing. Includes page_size=0 update, 24x7 math reconciliation, DATEDIF real-date fix, day-trip M&IE correctness fix (was shipping 25% low), aged-wage row explicit, Sheet 2/Sheet 1 unit clarity, flat-tail detection, 6 DoD/DOE test ranges added to installation crosswalk, SOC 17-2199 fallback, same-metro TDY check, stacked factors definition. Status: inherited, not re-tested on FFP directly.
+
 ---
 
 *Testing record prepared April 2026 by James Jenrette / 1102tools. Independent grading methodology. MIT licensed. Source: github.com/1102tools/federal-contracting-skills.*
