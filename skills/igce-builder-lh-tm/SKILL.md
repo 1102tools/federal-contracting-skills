@@ -3,19 +3,14 @@ name: igce-builder-lh-tm
 description: >
   Build IGCEs for Labor Hour (LH) and Time-and-Materials (T&M) federal
   contracts using burden multiplier pricing. Orchestrates BLS OEWS, GSA
-  CALC+, and GSA Per Diem skills. T&M adds materials estimation at cost
-  (FAR 16.601(b)). Supports SOW/PWS decomposition into labor categories
-  and rate validation against CALC+ market data. Trigger for: IGCE,
-  independent government cost estimate, cost estimate, price estimate,
-  labor hour IGCE, LH IGCE, T&M IGCE, time and materials estimate,
-  build an IGCE, estimate costs for, how much should this contract cost,
-  burden multiplier, burdened rate, IGCE with travel, IGCE with materials.
-  Also trigger for pricing requirements, burdened rates, CALC+ rate
-  comparison, or materials estimation for T&M. Do NOT use for FFP
-  contracts or wrap rate buildup (use IGCE Builder FFP). Do NOT use for
-  cost-reimbursement CPFF/CPAF/CPIF (use IGCE Builder CR). Do NOT use
-  for grant budgets (use Grant Budget Builder). Requires BLS OEWS API,
-  GSA CALC+ Ceiling Rates API, and GSA Per Diem Rates API skills.
+  CALC+, and GSA Per Diem. T&M adds materials at cost (FAR 16.601(b)).
+  Supports SOW/PWS decomposition and CALC+ rate validation. Trigger for:
+  LH IGCE, T&M IGCE, labor hour estimate, time and materials estimate,
+  burden multiplier, burdened rate, IGCE with travel or materials,
+  CALC+ rate comparison. Do NOT use for FFP (use IGCE Builder FFP),
+  cost-reimbursement CPFF/CPAF/CPIF (use IGCE Builder CR), or grant
+  budgets (use Grant Budget Builder). Requires the bls-oews, gsa-calc,
+  and gsa-perdiem MCP servers.
 ---
 
 # IGCE Builder: Labor Hour & Time-and-Materials (LH/T&M)
