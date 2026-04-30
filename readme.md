@@ -26,11 +26,13 @@ The five API data-source skills (BLS OEWS, GSA CALC+, GSA Per Diem, SAM.gov, USA
 2. **One-click install for Claude Desktop.** `.mcpb` bundles prompt for API keys at install time and register tools automatically. Contracting officers install them the same way they install any app.
 3. **Less context cost.** Tool schemas are ~100 tokens each. The old API skills cost 500-1000 lines of context per run.
 4. **Production-hardened.** Each MCP went through 3-6 audit rounds with live testing against the production API. Roughly 350 bugs fixed during hardening across the eight MCPs.
-5. **Cross-client support.** MCP is an open standard. Same servers run in Claude Desktop, Claude Code, Cursor, Cline, Zed, Continue.
+5. **Cross-client support.** MCP is an open standard. Same servers run in Claude Desktop, Claude Code, Codex (ChatGPT), Gemini (CLI), Copilot.
 
 The orchestration skills in this repo stay as skills. Their value is decision trees, FAR-compliant narrative, and document generation, not API calls.
 
 ## The orchestration skills
+
+> **Model note:** These skills are built for Opus. Skills are still maturing as a format, with limits on length that force a lot of content into one file. Opus handles the density. On smaller models expect missed steps and wrong outputs.
 
 ### FAR contracts
 
